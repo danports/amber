@@ -38,24 +38,24 @@ end
 
 -- Local repositories
 local Repository = {}
-Repository.local = {}
-Repository.local.__index = Repository.local
-Repository.local.new = function(data)
-	return setmetatable({path = data.path or "/packages"}, Repository.local)
+Repository.localDirectory = {}
+Repository.localDirectory.__index = Repository.localDirectory
+Repository.localDirectory.new = function(data)
+	return setmetatable({path = data.path or "/packages"}, Repository.localDirectory)
 end
-Repository.local.getPackageRootPath = function(self, packageId)
+Repository.localDirectory.getPackageRootPath = function(self, packageId)
 	return fs.combine(self.path, packageId.name)
 end
-Repository.local.getPackagePath = function(self, packageId)
+Repository.localDirectory.getPackagePath = function(self, packageId)
 	return fs.combine(self:getPackageRootPath(packageId), packageId.version)
 end
-Repository.local.getAllVersions = function(self, packageId)
+Repository.localDirectory.getAllVersions = function(self, packageId)
 	local path = self:getPackageRootPath(packageId)
 	if fs.isDir(path) then
 		return fs.list(path)
 	end
 end
-Repository.local.getLatestVersion = function(self, packageId)
+Repository.localDirectory.getLatestVersion = function(self, packageId)
 	local versions = self:getAllVersions(packageId)
 	if versions == nil then
 		return
@@ -83,7 +83,7 @@ local function loadFilesIn(path)
 	end
 	return fileData
 end
-Repository.local.readPackage = function(self, packageId)
+Repository.localDirectory.readPackage = function(self, packageId)
 	local path = self:getPackagePath(packageId)
 	if fs.isDir(path) then
 		-- TODO: Extract manifest handling out of repository code.
@@ -92,7 +92,7 @@ Repository.local.readPackage = function(self, packageId)
 		return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
 	end
 end
-Repository.local.bindPackageId = function(self, packageId)
+Repository.localDirectory.bindPackageId = function(self, packageId)
 	local version = packageId.version
 	if version == nil then
 		version = self:getLatestVersion(packageId)
@@ -102,7 +102,7 @@ Repository.local.bindPackageId = function(self, packageId)
 	end
 	return {name = packageId.name, version = version}
 end
-Repository.local.bindPackage = function(self, packageId)
+Repository.localDirectory.bindPackage = function(self, packageId)
 	local package = self:bindPackageId(packageId)
 	if package ~= nil then
 		return self:readPackage(package)
