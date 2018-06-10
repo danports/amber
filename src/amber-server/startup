@@ -271,7 +271,7 @@ function onStartup()
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 	net.removeHandler("packageUpdateAvailable") -- We deploy our own updates.
 
-	print(string.format("Updates: Listening on %s...", net.openModem(config.modem)))
+	print(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
 	dns.register("updates")
 	readState()
 end

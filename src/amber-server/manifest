@@ -1,0 +1,9 @@
+{
+	dependencies = {
+		{name = "events"},
+		{name = "net"},
+		{name = "dns"},
+		{name = "serializer"},
+		{name = "github"}
+	}
+}
