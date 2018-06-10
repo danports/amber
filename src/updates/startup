@@ -157,48 +157,67 @@ function bindPackageId(packageId)
 	return {name = packageId.name, version = version}
 end
 
+function bindLocalPackage(packageId)
+	local package = bindPackageId(packageId)
+	if package ~= nil then
+		return readPackage(package)
+	end
+end
+
+function bindRepositoryPackage(repoConfig, packageId)
+	local repo = github.repo(repoConfig.user, repoConfig.name)
+	local version = packageId.version
+	local tree
+	if version == nil then
+		if repoConfig.defaultVersion then
+			version = repoConfig.defaultVersion
+			tree = repo:tree(version)
+		else
+			local release = repo:latestRelease()
+			version = release.tag
+			tree = release:tree()
+		end
+	else
+		local release = repo:releaseByTag(version)
+		tree = release:tree()
+	end
+	
+	local repoRoot = tree:getChild(repoConfig.path or "src")
+	if repoRoot == nil then
+		return
+	end
+	local packageTree = repoRoot:getChild(packageId.name)
+	if packageTree == nil then
+		return
+	end
+	
+	local contents = {}
+	packageTree:copyTo(contents, nil, encode)
+	local manifest = {}
+	if contents.manifest then
+		manifest = textutils.unserialize(net.decode(contents.manifest))
+	end
+	-- TODO: Remove the manifest from the contents (here and for the local file provider).
+	return {
+		id = {name = packageId.name, version = version},
+		contents = contents,
+		manifest = manifest
+	}
+end
+
 function bindPackage(packageId)
 	-- TODO: Extract a generic repository interface that works for both the local and github repositories.
 	-- Move the code specific to each into separate files/sections.
-	local package = bindPackageId(packageId)
-	if package ~= nil then
-		-- TODO: This isn't guaranteed to find the package...
-		return readPackage(package)
+	local localPackage = bindLocalPackage(packageId)
+	if localPackage ~= nil then
+		return localPackage
 	end
 	
 	for _, repoConfig in pairs(repositories) do
-		local repo = github.repo(repoConfig.user, repoConfig.name)
-		local version = packageId.version
-		local tree
-		if version == nil then
-			if repoConfig.defaultVersion then
-				version = repoConfig.defaultVersion
-				tree = repo:tree(version)
-			else
-				local release = repo:latestRelease()
-				version = release.tag
-				tree = release:tree()
-			end
-		else
-			local release = repo:releaseByTag(version)
-			tree = release:tree()
+		local repoPackage = bindRepositoryPackage(repoConfig, packageId)
+		if repoPackage ~= nil then
+			return repoPackage
 		end
-		
-		local packageTree = tree:getChild(repoConfig.path or "src"):getChild(packageId.name)
-		if packageTree ~= nil then
-			local contents = {}
-			packageTree:copyTo(contents, nil, encode)
-			local manifest = {}
-			if contents.manifest then
-				manifest = textutils.unserialize(net.decode(contents.manifest))
-			end
-			-- TODO: Remove the manifest from the contents (here and for the local file provider).
-			return {
-				id = {name = packageId.name, version = version},
-				contents = contents,
-				manifest = manifest
-			}
-		end		
 	end
 end
 
