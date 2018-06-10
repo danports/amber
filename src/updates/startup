@@ -1,0 +1,255 @@
+os.loadAPI("apis/events")
+os.loadAPI("apis/net")
+os.loadAPI("apis/dns")
+os.loadAPI("apis/serializer")
+local github = dofile("apis/github")
+
+function encode(data)
+	-- TODO: Eliminate this - it shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
+	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
+end
+
+function deployUpdate(toDeploy)
+	if toDeploy == nil or toDeploy == "updates" then
+		-- Deploy updates to the update server first.
+		print("Installing update server update...")
+		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
+		return net.installBundle(getBundle({{name = "updates"}}))
+	else
+		broadcastUpdate(toDeploy)
+	end
+end
+
+function broadcastUpdate(toDeploy)
+	local updating = "global"
+	if toDeploy ~= nil then
+		updating = toDeploy
+	end
+	print(string.format("Broadcasting availability of system update: %s", updating))
+	rednet.broadcast({"packageUpdateAvailable", toDeploy})
+end
+
+function readState()
+	repositories = serializer.readFromFile("/repositories")
+
+	local state = serializer.readFromFile("/state")
+	if state.broadcastOnStartup then
+		broadcastUpdate(state.updateToDeploy)
+	end
+	fs.delete("/state")
+end
+
+function packageSatisfies(package, packageId)
+	if package.id.name ~= packageId.name then
+		return false
+	end
+	if packageId.version == nil then
+		return true
+	end
+	return compareVersions(packageId.version, package.id.version) == 0
+end
+
+function getAllVersions(packageId)
+	local path = getPackageRootPath(packageId)
+	if fs.isDir(path) then
+		return fs.list(path)
+	end
+end
+
+function parseVersion(version)
+	local parsed = {}
+	version:gsub("(%d+)", function(match) table.insert(parsed, tonumber(match)) end)
+	return parsed
+end
+
+function compareVersions(versionA, versionB)
+	-- TODO: Doesn't handle trailing zeroes correctly. Could iterate through max(#a, #b).
+	-- We should probably just imagine that the versions both have an unlimited number of 
+	-- trailing zeroes.
+	local a = parseVersion(versionA)
+	local b = parseVersion(versionB)
+	for i, aPart in ipairs(a) do
+		local bPart = b[i]
+		if bPart == nil then
+			return 1 -- More numbers means a is a later version.
+		else
+			if aPart < bPart then
+				return -1
+			elseif aPart > bPart then
+				return 1
+			end
+		end
+	end
+	-- If they are equal so far but b has more numbers, b is later.
+	if #b > #a then
+		return -1
+	end
+	return 0
+end
+
+function getLatestVersion(packageId)
+	local versions = getAllVersions(packageId)
+	if versions == nil then
+		return
+	end
+	local latest
+	for _, version in pairs(versions) do
+		if latest == nil or compareVersions(latest, version) == -1 then
+			latest = version
+		end
+	end
+	return latest
+end
+
+function bundleContains(msg, packageId)
+	for _, package in pairs(msg) do
+		if packageSatisfies(package, packageId) then
+			return true
+		end
+	end
+	return false
+end
+
+function getPackageRootPath(packageId)
+	return fs.combine("/packages", packageId.name)
+end
+
+function getPackagePath(packageId)
+	return fs.combine(getPackageRootPath(packageId), packageId.version)
+end
+
+function loadFilesIn(path)
+	local files = fs.list(path)
+	local fileData = {}
+	for _, v in pairs(files) do
+		local filePath = fs.combine(path, v)
+		if fs.isDir(filePath) then
+			fileData[v] = loadFilesIn(filePath)
+		else
+			local file = fs.open(filePath, "r")
+			fileData[v] = encode(file.readAll())
+			file.close()
+		end
+	end
+	return fileData
+end
+
+function loadPackageFrom(packageId, path)
+	local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
+	return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
+end
+
+function readPackage(packageId)
+	local path = getPackagePath(packageId)
+	if fs.isDir(path) then
+		return loadPackageFrom(packageId, path)
+	end
+end
+
+function bindPackageId(packageId)
+	local version = packageId.version
+	if version == nil then
+		version = getLatestVersion(packageId)
+	end
+	if version == nil then
+		return nil
+	end
+	return {name = packageId.name, version = version}
+end
+
+function bindPackage(packageId)
+	-- TODO: Extract a generic repository interface that works for both the local and github repositories.
+	-- Move the code specific to each into separate files/sections.
+	local package = bindPackageId(packageId)
+	if package ~= nil then
+		-- TODO: This isn't guaranteed to find the package...
+		return readPackage(package)
+	end
+	
+	for _, repoConfig in pairs(repositories) do
+		local repo = github.repo(repoConfig.user, repoConfig.name)
+		local tree
+		if packageId.version == nil then
+			if repoConfig.defaultVersion then
+				tree = repo:tree(repoConfig.defaultVersion)
+			else
+				local release = repo:latestRelease()
+				tree = release:tree()
+			end
+		else
+			local release = repo:releaseByTag(packageId.version)
+			tree = release:tree()
+		end
+		
+		local packageTree = tree:getChild(repoConfig.path or "src"):getChild(packageId.name)
+		if packageTree ~= nil then
+			local contents = {}
+			packageTree:copyTo(contents)
+			local manifest = {}
+			if contents.manifest then
+				manifest = textutils.unserialize(contents.manifest)
+			end
+			-- TODO: Remove the manifest from the contents (here and for the local file provider).
+			return {
+				id = {name = packageId.name, version = release.tag},
+				contents = contents,
+				manifest = manifest
+			}
+		end		
+	end
+end
+
+function formatPackageId(packageId)
+	local result = packageId.name
+	if packageId.version ~= nil then
+		result = result .. "-" .. packageId.version
+	end
+	return result
+end
+
+function bundlePackage(msg, packageId)
+	if bundleContains(msg, packageId) then
+		return
+	end
+	local package = bindPackage(packageId)
+	if package == nil then
+		print(string.format("ERROR: Unable to locate package %s; ignoring it", formatPackageId(packageId)))
+		return
+	end
+	table.insert(msg, package)
+	bundlePackages(msg, package.manifest.dependencies)
+end
+
+function bundlePackages(msg, toPackage)
+	if toPackage == nil then
+		return
+	end
+	for _, packageId in pairs(toPackage) do
+		bundlePackage(msg, packageId)
+	end
+end
+
+function getBundle(toPackage)
+	local bundle = {}
+	bundlePackages(bundle, toPackage)
+	return bundle
+end
+
+function sendPackages(args, sender)
+	print(string.format("Sending %i packages to %i", #args[2], sender))
+	net.sendMessage(sender, "bundleDownload", getBundle(args[2]))
+end
+
+function onStartup()
+	net.registerRawMessageHandler("sendPackages", sendPackages)
+	net.registerMessageHandler("deployUpdate", deployUpdate)
+	net.removeHandler("packageUpdateAvailable") -- We deploy our own updates.
+
+	print(string.format("Updates: Listening on %s...", net.openModem(config.modem)))
+	dns.register("updates")
+	readState()
+end
+
+dofile("config")
+onStartup()
+events.runParallelMessageLoop()
