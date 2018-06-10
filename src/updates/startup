@@ -190,7 +190,7 @@ function bindPackage(packageId)
 			packageTree:copyTo(contents, nil, encode)
 			local manifest = {}
 			if contents.manifest then
-				manifest = textutils.unserialize(contents.manifest)
+				manifest = textutils.unserialize(net.decode(contents.manifest))
 			end
 			-- TODO: Remove the manifest from the contents (here and for the local file provider).
 			return {
