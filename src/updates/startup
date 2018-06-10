@@ -187,7 +187,7 @@ function bindPackage(packageId)
 		local packageTree = tree:getChild(repoConfig.path or "src"):getChild(packageId.name)
 		if packageTree ~= nil then
 			local contents = {}
-			packageTree:copyTo(contents)
+			packageTree:copyTo(contents, nil, encode)
 			local manifest = {}
 			if contents.manifest then
 				manifest = textutils.unserialize(contents.manifest)
