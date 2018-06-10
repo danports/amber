@@ -168,16 +168,19 @@ function bindPackage(packageId)
 	
 	for _, repoConfig in pairs(repositories) do
 		local repo = github.repo(repoConfig.user, repoConfig.name)
+		local version = packageId.version
 		local tree
-		if packageId.version == nil then
+		if version == nil then
 			if repoConfig.defaultVersion then
-				tree = repo:tree(repoConfig.defaultVersion)
+				version = repoConfig.defaultVersion
+				tree = repo:tree(version)
 			else
 				local release = repo:latestRelease()
+				version = release.tag
 				tree = release:tree()
 			end
 		else
-			local release = repo:releaseByTag(packageId.version)
+			local release = repo:releaseByTag(version)
 			tree = release:tree()
 		end
 		
@@ -191,7 +194,7 @@ function bindPackage(packageId)
 			end
 			-- TODO: Remove the manifest from the contents (here and for the local file provider).
 			return {
-				id = {name = packageId.name, version = release.tag},
+				id = {name = packageId.name, version = version},
 				contents = contents,
 				manifest = manifest
 			}
