@@ -1,0 +1,241 @@
+-- Forked from https://github.com/eric-wieser/computercraft-github/blob/master/apis/github
+local JSON = dofile("apis/dkjson")
+
+-- Build a github API url, with authorization headers.
+local function getAPI(path, auth)
+	local url = ('https://api.github.com/%s'):format(path)
+	local headers
+	if auth and auth.type == 'oauth' then
+		headers = { ['Authorization'] = ('token %s'):format(auth.token) }
+	end
+	local req = http.get(url, headers)
+	if req then
+		return req.getResponseCode(), JSON.decode(req.readAll())
+	else
+		return nil, {}
+	end
+end
+
+local function encodeURI(s)
+	return s:gsub(' ', '%20')
+end
+
+-- A class for authorization
+local authFile = '.github-auth'
+local function writeAuth(data)
+	f = fs.open(authFile, 'w')
+	f.write(textutils.serialize(data))
+	f.close()
+end
+local function getAuthTable()
+	local authTable = {}
+	if fs.exists(authFile) then
+		f = fs.open(authFile, 'r')
+		authTable = textutils.unserialize(f.readAll())
+		f.close()
+	end
+	return authTable
+end
+local Auth = {}
+Auth.__index = Auth
+Auth.new = function(type, user, token)
+	return setmetatable({type=type, user=user, token=token}, Auth)
+end
+Auth.get = function(user)
+	local authTable = getAuthTable()
+	local auth = authTable[user]
+	if auth then
+		auth = Auth.new(auth.type, auth.user, auth.token)
+	end
+	return auth
+end
+Auth.checkToken = function(self)
+	local status, request = getAPI('user', self)
+	return status == 200
+end
+Auth.save = function(self)
+	local authTable = getAuthTable()
+	authTable[self.user] = self
+	writeAuth(authTable)
+end
+Auth.delete = function(user)
+	local authTable = getAuthTable()
+	authTable[user] = nil
+	writeAuth(authTable)
+end
+
+-- A class for a blob (aka a file)
+local Blob = {}
+Blob.__index = Blob
+Blob.new = function(repo, sha, path)
+	return setmetatable({repo=repo, sha=sha, path=path}, Blob)
+end
+Blob.fullPath = function(self, base)
+	if self.parent and self.parent ~= base then
+		return fs.combine(self.parent:fullPath(), self.path)
+	else
+		return self.path
+	end
+end
+
+-- A class for a tree (aka a folder)
+local Tree = {}
+Tree.__index = Tree
+Tree.new = function(repo, sha, path)
+	local url = ('repos/%s/%s/git/trees/%s'):format(repo.user, repo.name, sha)
+	local status, data = getAPI(url, repo.auth)
+	if not status then
+		error('Could not get github API from ' ..url)
+	end
+	if data.tree then
+		local tree = setmetatable({
+			repo=repo, sha=data.sha,
+			path=path or '', size=0,
+			contents={}
+		}, Tree)
+		for _, childdata in ipairs(data.tree) do
+			childdata.fullPath = fs.combine(tree:fullPath(), childdata.path)
+			local child
+			if childdata.type == 'blob' then
+				child = Blob.new(repo, childdata.sha, childdata.path)
+				child.size = childdata.size
+			elseif childdata.type == 'tree' then
+				child = Tree.new(repo, childdata.sha, childdata.path)
+			else
+				error("uh oh", JSON.encode(childdata))
+				child = childdata
+			end
+			tree.size = tree.size + child.size
+			child.parent = tree
+			table.insert(tree.contents, child)
+		end
+		return tree
+	else
+		error("uh oh", JSON.encode(data))
+	end
+end
+local function walkTree(t, level)
+	for _, item in ipairs(t.contents) do
+		coroutine.yield(item, level)
+		if getmetatable(item) == Tree then
+			walkTree(item, level + 1)
+		end
+	end
+end
+Tree.getChild = function(self, path)
+	for _, item in ipairs(self.contents) do
+		if item.path == path then
+			return item
+		end
+	end
+end
+Tree.iter = function(self)
+	return coroutine.wrap(function()
+		walkTree(self, 0)
+	end)
+end
+Tree.cloneTo = function(self, dest, onProgress)
+	if not fs.exists(dest) then
+		fs.makeDir(dest)
+	elseif not fs.isDir(dest) then
+		return error("Destination is a file!")
+	end
+
+	for item in self:iter() do
+		local gitpath = item:fullPath()
+		local path = fs.combine(dest, gitpath)
+		if getmetatable(item) == Tree then
+			fs.makeDir(path)
+		elseif getmetatable(item) == Blob then
+			local data = http.get(
+				('https://raw.github.com/%s/%s/%s/%s'):format(
+					self.repo.user, self.repo.name, self.sha,
+					encodeURI(gitpath)
+				)
+			)
+			local h = fs.open(path, 'w')
+			local text = data.readAll()
+			h.write(text)
+			h.close()
+		end
+		if onProgress then onProgress(item) end
+	end
+end
+Tree.copyTo = function(self, dest, onProgress, encode)
+	local root = self.parent
+	while root.parent do
+		root = root.parent
+	end
+	if encode == nil then
+		encode = function(s) return s end
+	end
+	for item in self:iter() do
+		local gitpath = item:fullPath()
+		if getmetatable(item) == Blob then
+			local data = http.get(
+				('https://raw.github.com/%s/%s/%s/%s'):format(
+					root.repo.user, root.repo.name, root.sha,
+					encodeURI(gitpath)
+				)
+			)
+			dest[item:fullPath(self)] = encode(data.readAll())
+		end
+		if onProgress then onProgress(item) end
+	end
+end
+Tree.fullPath = Blob.fullPath
+
+-- A class for a release
+local Release = {}
+Release.__index = Release
+Release.new = function(repo, tag)
+	local r = setmetatable({repo=repo, tag=tag}, Release)
+	return r
+end
+Release.tree = function(self)
+	return self.repo:tree(self.tag)
+end
+
+-- A class for a repository
+local __repoPriv = setmetatable({}, {mode='k'})
+local Repository = {}
+Repository.__index = Repository
+Repository.new = function(user, name, auth)
+	local r = setmetatable({user=user, name=name, auth=auth}, Repository)
+	__repoPriv[r] = {trees={}}
+	return r
+end
+Repository.tree = function(self, sha)
+	sha = sha or "master"
+	if not __repoPriv[self].trees[sha] then
+		__repoPriv[self].trees[sha] = Tree.new(self, sha)
+	end
+	return __repoPriv[self].trees[sha]
+end
+Repository.latestRelease = function(self)
+	local url = ('repos/%s/%s/releases/latest'):format(self.user, self.name)
+	local status, data = getAPI(url, self.auth)
+	if not status then
+		error('Could not get github API from ' ..url)
+	end
+	return Release.new(self, data["tag_name"])
+end
+Repository.releaseForTag = function(self, tag)
+	local url = ('repos/%s/%s/releases/tags/%s'):format(self.user, self.name, tag)
+	local status, data = getAPI(url, self.auth)
+	if not status then
+		error('Could not get github API from ' ..url)
+	end
+	return Release.new(self, data["tag_name"])
+end
+Repository.__tostring = function(self) return ("Repo@%s/%s"):format(self.user, self.name) end
+
+-- Export members
+local github = {}
+github.Repository = Repository
+github.Blob = Blob
+github.Tree = Tree
+github.Auth = Auth
+github.Release = Release
+github.repo = Repository.new
+return github
