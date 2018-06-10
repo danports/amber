@@ -1,0 +1,40 @@
+-- If we're running off a disk, we want to load all of the APIs from the disk, not the computer,
+-- to ensure that they are compatible with this code.
+-- TODO: Side-by-side loading (we could just embed all dependencies into this file).
+if os.originalLoadAPI == nil then
+	os.originalLoadAPI = os.loadAPI
+	local dir = fs.getDir(shell.getRunningProgram())
+	os.loadAPI = function(api)
+		os.originalLoadAPI(fs.combine(dir, api))
+	end
+end
+
+os.loadAPI("apis/events")
+os.loadAPI("apis/net")
+
+-- Edit templates interactively.
+net.setEditHandler(function(file)
+	shell.run("edit", "/" .. file)
+end)
+-- Download packages into the current folder.
+net.setPackageRepository(shell.dir())
+
+-- TODO: install/remove/list/search commands.
+local args = {...}
+local package = args[1]
+
+net.openModem()
+if package == nil then
+	net.updatePackages()
+else
+	net.requestPackages({{name = package}})
+end
+
+-- Wait for the packages requested to arrive.
+events.runMessageLoop()
+
+-- TODO: Next steps:
+-- Extract package repository bits into their own library and use that in the client and server.
+-- Add an amber-server repository that queries the remote server for the bits.
+-- Change the repository interface to allow requesting multiple packages at once.
+-- Only request the remaining packages from the other repositories.
