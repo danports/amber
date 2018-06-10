@@ -4,58 +4,7 @@ os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
 local github = dofile("apis/github")
 
-function encode(data)
-	-- TODO: Eliminate this - it shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
-	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
-end
-
-function deployUpdate(toDeploy)
-	if toDeploy == nil or toDeploy == "updates" then
-		-- Deploy updates to the update server first.
-		print("Installing update server update...")
-		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
-		return net.installBundle(getBundle({{name = "updates"}}))
-	else
-		broadcastUpdate(toDeploy)
-	end
-end
-
-function broadcastUpdate(toDeploy)
-	local updating = "global"
-	if toDeploy ~= nil then
-		updating = toDeploy
-	end
-	print(string.format("Broadcasting availability of system update: %s", updating))
-	rednet.broadcast({"packageUpdateAvailable", toDeploy})
-end
-
-function readState()
-	repositories = serializer.readFromFile("/repositories")
-
-	local state = serializer.readFromFile("/state")
-	if state.broadcastOnStartup then
-		broadcastUpdate(state.updateToDeploy)
-	end
-	fs.delete("/state")
-end
-
-function packageSatisfies(package, packageId)
-	if package.id.name ~= packageId.name then
-		return false
-	end
-	if packageId.version == nil then
-		return true
-	end
-	return compareVersions(packageId.version, package.id.version) == 0
-end
-
-function getAllVersions(packageId)
-	local path = getPackageRootPath(packageId)
-	if fs.isDir(path) then
-		return fs.list(path)
-	end
-end
-
+-- Version calculations
 function parseVersion(version)
 	local parsed = {}
 	version:gsub("(%d+)", function(match) table.insert(parsed, tonumber(match)) end)
@@ -87,18 +36,155 @@ function compareVersions(versionA, versionB)
 	return 0
 end
 
-function getLatestVersion(packageId)
-	local versions = getAllVersions(packageId)
+-- Local repositories
+local Repository.local = {}
+Repository.local.__index = Repository.local
+Repository.local.new = function(data)
+	return setmetatable({path = data.path or "/packages"}, Repository.local)
+end
+Repository.local.getPackageRootPath = function(self, packageId)
+	return fs.combine(self.path, packageId.name)
+end
+Repository.local.getPackagePath = function(self, packageId)
+	return fs.combine(self:getPackageRootPath(packageId), packageId.version)
+end
+Repository.local.getAllVersions = function(self, packageId)
+	local path = self:getPackageRootPath(packageId)
+	if fs.isDir(path) then
+		return fs.list(path)
+	end
+end
+Repository.local.getLatestVersion = function(self, packageId)
+	local versions = self:getAllVersions(packageId)
 	if versions == nil then
 		return
 	end
 	local latest
 	for _, version in pairs(versions) do
-		if latest == nil or compareVersions(latest, version) == -1 then
+		if latest == nil or compareVersions(latest, version) < 0 then
 			latest = version
 		end
 	end
 	return latest
+end
+local function loadFilesIn(path)
+	local files = fs.list(path)
+	local fileData = {}
+	for _, v in pairs(files) do
+		local filePath = fs.combine(path, v)
+		if fs.isDir(filePath) then
+			fileData[v] = loadFilesIn(filePath)
+		else
+			local file = fs.open(filePath, "r")
+			fileData[v] = net.encode(file.readAll())
+			file.close()
+		end
+	end
+	return fileData
+end
+Repository.local.readPackage = function(self, packageId)
+	local path = self:getPackagePath(packageId)
+	if fs.isDir(path) then
+		-- TODO: Extract manifest handling out of repository code.
+		-- TODO: Remove the manifest from the contents everywhere.
+		local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
+		return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
+	end
+end
+Repository.local.bindPackageId = function(self, packageId)
+	local version = packageId.version
+	if version == nil then
+		version = self:getLatestVersion(packageId)
+	end
+	if version == nil then
+		return nil
+	end
+	return {name = packageId.name, version = version}
+end
+Repository.local.bindPackage = function(self, packageId)
+	local package = self:bindPackageId(packageId)
+	if package ~= nil then
+		return self:readPackage(package)
+	end
+end
+
+-- GitHub repositories
+local Repository.GitHub = {}
+Repository.GitHub.__index = Repository.GitHub
+Repository.GitHub.new = function(data)
+	local auth
+	if data.auth then
+		auth = github.Auth.new(data.auth.type, data.auth.user, data.auth.token)
+	end
+	local repo = github.repo(data.user, data.name, auth)
+	return setmetatable({
+		repo = repo,
+		defaultVersion = data.defaultVersion,
+		path = data.path or "src"
+	}, Repository.GitHub)
+end
+Repository.GitHub.bindPackageId = function(self, packageId)
+	local version = packageId.version
+	local tree
+	if version == nil then
+		if self.defaultVersion then
+			version = self.defaultVersion
+			tree = self.repo:tree(version)
+		else
+			local release = self.repo:latestRelease()
+			version = release.tag
+			tree = release:tree()
+		end
+	else
+		local release = self.repo:releaseByTag(version)
+		tree = release:tree()
+	end
+	return version, tree
+end
+Repository.GitHub.bindPackage = function(self, packageId)
+	local version, tree = self:bindPackageId(packageId)
+	local repoRoot = tree:getChild(self.path)
+	if repoRoot == nil then
+		print(string.format("ERROR: Unable to locate repository root %s", self.path))
+		return
+	end
+	local packageTree = repoRoot:getChild(packageId.name)
+	if packageTree == nil then
+		return
+	end
+	
+	local contents = {}
+	packageTree:copyTo(contents, nil, net.encode)
+	local manifest = {}
+	if contents.manifest then
+		manifest = textutils.unserialize(net.decode(contents.manifest))
+	end
+	return {
+		id = {name = packageId.name, version = version},
+		contents = contents,
+		manifest = manifest
+	}
+end
+
+-- Package bundling
+-- TODO: Extract package ID, package, and package bundle concepts.
+function formatPackageId(packageId)
+	local result = packageId.name
+	if packageId.version ~= nil then
+		-- TODO: Revisit this - use a different character to separate name & version.
+		result = result .. "-" .. packageId.version
+	end
+	return result
+end
+
+function packageSatisfies(package, packageId)
+	if package.id.name ~= packageId.name then
+		return false
+	end
+	if packageId.version == nil then
+		return true
+	end
+	return compareVersions(packageId.version, package.id.version) == 0
 end
 
 function bundleContains(msg, packageId)
@@ -110,127 +196,15 @@ function bundleContains(msg, packageId)
 	return false
 end
 
-function getPackageRootPath(packageId)
-	return fs.combine("/packages", packageId.name)
-end
-
-function getPackagePath(packageId)
-	return fs.combine(getPackageRootPath(packageId), packageId.version)
-end
-
-function loadFilesIn(path)
-	local files = fs.list(path)
-	local fileData = {}
-	for _, v in pairs(files) do
-		local filePath = fs.combine(path, v)
-		if fs.isDir(filePath) then
-			fileData[v] = loadFilesIn(filePath)
-		else
-			local file = fs.open(filePath, "r")
-			fileData[v] = encode(file.readAll())
-			file.close()
-		end
-	end
-	return fileData
-end
-
-function loadPackageFrom(packageId, path)
-	local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
-	return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
-end
-
-function readPackage(packageId)
-	local path = getPackagePath(packageId)
-	if fs.isDir(path) then
-		return loadPackageFrom(packageId, path)
-	end
-end
-
-function bindPackageId(packageId)
-	local version = packageId.version
-	if version == nil then
-		version = getLatestVersion(packageId)
-	end
-	if version == nil then
-		return nil
-	end
-	return {name = packageId.name, version = version}
-end
-
-function bindLocalPackage(packageId)
-	local package = bindPackageId(packageId)
-	if package ~= nil then
-		return readPackage(package)
-	end
-end
-
-function bindRepositoryPackage(repoConfig, packageId)
-	local auth
-	if repoConfig.auth then
-		auth = github.Auth.new(repoConfig.auth.type, repoConfig.auth.user, repoConfig.auth.token)
-	end
-	local repo = github.repo(repoConfig.user, repoConfig.name, auth)
-	local version = packageId.version
-	local tree
-	if version == nil then
-		if repoConfig.defaultVersion then
-			version = repoConfig.defaultVersion
-			tree = repo:tree(version)
-		else
-			local release = repo:latestRelease()
-			version = release.tag
-			tree = release:tree()
-		end
-	else
-		local release = repo:releaseByTag(version)
-		tree = release:tree()
-	end
-	
-	local repoRoot = tree:getChild(repoConfig.path or "src")
-	if repoRoot == nil then
-		return
-	end
-	local packageTree = repoRoot:getChild(packageId.name)
-	if packageTree == nil then
-		return
-	end
-	
-	local contents = {}
-	packageTree:copyTo(contents, nil, encode)
-	local manifest = {}
-	if contents.manifest then
-		manifest = textutils.unserialize(net.decode(contents.manifest))
-	end
-	-- TODO: Remove the manifest from the contents (here and for the local file provider).
-	return {
-		id = {name = packageId.name, version = version},
-		contents = contents,
-		manifest = manifest
-	}
-end
-
 function bindPackage(packageId)
-	-- TODO: Extract a generic repository interface that works for both the local and github repositories.
-	-- Move the code specific to each into separate files/sections.
-	local localPackage = bindLocalPackage(packageId)
-	if localPackage ~= nil then
-		return localPackage
-	end
-	
 	for _, repoConfig in pairs(repositories) do
-		local repoPackage = bindRepositoryPackage(repoConfig, packageId)
-		if repoPackage ~= nil then
-			return repoPackage
+		-- TODO: Instantiate these when reading the config files on startup.
+		local repo = Repository[repoConfig.type].new(repoConfig)
+		local result = repo:bindPackage(packageId)
+		if result ~= nil then
+			return result
 		end
 	end
-end
-
-function formatPackageId(packageId)
-	local result = packageId.name
-	if packageId.version ~= nil then
-		result = result .. "-" .. packageId.version
-	end
-	return result
 end
 
 function bundlePackage(msg, packageId)
@@ -239,6 +213,7 @@ function bundlePackage(msg, packageId)
 	end
 	local package = bindPackage(packageId)
 	if package == nil then
+		-- TODO: Return an error along with the resolved packages to the client.
 		print(string.format("ERROR: Unable to locate package %s; ignoring it", formatPackageId(packageId)))
 		return
 	end
@@ -264,6 +239,38 @@ end
 function sendPackages(args, sender)
 	print(string.format("Sending %i packages to %i", #args[2], sender))
 	net.sendMessage(sender, "bundleDownload", getBundle(args[2]))
+end
+
+-- Update broadcasting
+function deployUpdate(toDeploy)
+	if toDeploy == nil or toDeploy == "updates" then
+		-- Deploy updates to the update server first.
+		print("Installing update server update...")
+		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
+		return net.installBundle(getBundle({{name = "updates"}}))
+	else
+		broadcastUpdate(toDeploy)
+	end
+end
+
+function broadcastUpdate(toDeploy)
+	local updating = "global"
+	if toDeploy ~= nil then
+		updating = toDeploy
+	end
+	print(string.format("Broadcasting availability of system update: %s", updating))
+	rednet.broadcast({"packageUpdateAvailable", toDeploy})
+end
+
+-- Startup
+function readState()
+	repositories = serializer.readFromFile("/repositories")
+
+	local state = serializer.readFromFile("/state")
+	if state.broadcastOnStartup then
+		broadcastUpdate(state.updateToDeploy)
+	end
+	fs.delete("/state")
 end
 
 function onStartup()
