@@ -24,6 +24,7 @@ local args = {...}
 local package = args[1]
 
 net.openModem()
+-- TODO: Extract net library bits.
 if package == nil then
 	net.updatePackages()
 else

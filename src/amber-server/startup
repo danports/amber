@@ -37,7 +37,8 @@ function compareVersions(versionA, versionB)
 end
 
 -- Local repositories
-local Repository.local = {}
+local Repository = {}
+Repository.local = {}
 Repository.local.__index = Repository.local
 Repository.local.new = function(data)
 	return setmetatable({path = data.path or "/packages"}, Repository.local)
@@ -109,7 +110,7 @@ Repository.local.bindPackage = function(self, packageId)
 end
 
 -- GitHub repositories
-local Repository.GitHub = {}
+Repository.GitHub = {}
 Repository.GitHub.__index = Repository.GitHub
 Repository.GitHub.new = function(data)
 	local auth
