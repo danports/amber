@@ -167,7 +167,7 @@ end
 function bindRepositoryPackage(repoConfig, packageId)
 	local auth
 	if repoConfig.auth then
-		auth = github.Auth.new(auth.type, auth.user, auth.token)
+		auth = github.Auth.new(repoConfig.auth.type, repoConfig.auth.user, repoConfig.auth.token)
 	end
 	local repo = github.repo(repoConfig.user, repoConfig.name, auth)
 	local version = packageId.version
