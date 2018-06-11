@@ -107,8 +107,8 @@ function installBundle(bundle)
 		rebootNeeded = installPackage(package) or rebootNeeded
 	end
 	if rebootNeeded then
-		print("Rebooting...")
-		os.sleep(2)
+		print("Rebooting in 3 seconds...")
+		os.sleep(3)
 		os.reboot()
 	end
 	return false
