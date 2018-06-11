@@ -72,7 +72,7 @@ Blob.new = function(repo, sha, path)
 end
 Blob.fullPath = function(self, base)
 	if self.parent and self.parent ~= base then
-		return fs.combine(self.parent:fullPath(), self.path)
+		return fs.combine(self.parent:fullPath(base), self.path)
 	else
 		return self.path
 	end
