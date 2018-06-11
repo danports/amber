@@ -1,6 +1,7 @@
 {
 	dependencies = {
 		{name = "events"},
-		{name = "net"}
+		{name = "net"},
+		{name = "amber"}
 	}
 }

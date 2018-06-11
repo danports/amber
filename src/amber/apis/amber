@@ -1,0 +1,118 @@
+os.loadAPI("apis/serializer")
+os.loadAPI("apis/net")
+
+-- TODO: Introduce the concept of a local package installation.
+-- Then have operations like install, remove, etc. on the local installation.
+local packageRepository = ""
+
+function setPackageRepository(path)
+	packageRepository = path
+end
+
+function encode(data)
+	-- TODO: Eliminate this - it shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
+	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
+end
+
+function decode(data)
+	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@1", "\n"), "@2", "\""), "@3", "\\"), "@0", "@")
+end
+
+function requestPackages(packages)
+	-- TODO: Use the log library.
+	print(string.format("Requesting %i packages...", #packages))
+	net.sendMessage("amber://", "sendPackages", packages)
+end
+
+function getPackageListPath()
+	return fs.combine(packageRepository, "packageList")
+end
+
+function getInstalledPackageNames()
+	return serializer.readFromFile(getPackageListPath())
+end
+
+function updatePackages(availableNow)
+	local installed = getInstalledPackageNames()
+	if installed == nil then
+		return
+	end
+	local toRequest = {}
+	for _, pkg in pairs(installed) do
+		if availableNow == nil or availableNow == pkg.name then
+			table.insert(toRequest, {name = pkg.name})
+		end
+	end
+	requestPackages(toRequest)
+end
+
+local editHandler
+
+function setEditHandler(handler)
+	editHandler = handler
+end
+
+function writePackageFiles(path, data)
+	local rebootNeeded = false
+	if not fs.isDir(path) then
+		fs.makeDir(path)
+	end
+	for file, contents in pairs(data) do
+		local destination = fs.combine(path, file)
+		if type(contents) == "table" then
+			rebootNeeded = writePackageFiles(destination, contents) or rebootNeeded
+		else
+			if file == "startup" then
+				rebootNeeded = true
+			end
+			local writeTo = destination
+			local editFile = false
+			if destination:sub(-2) == ".t" then
+				local baseName = destination:sub(1, #destination - 2)
+				if not fs.exists(baseName) then
+					writeTo = baseName
+					editFile = true
+					print(string.format("%s => %s", destination, writeTo))
+				else
+					print(writeTo)
+				end
+			else
+				print(writeTo)
+			end
+			local file = fs.open(writeTo, "w")
+			file.write(decode(contents))
+			file.close()
+			if editFile and editHandler ~= nil then
+				print(string.format("Editing: %s", writeTo))
+				editHandler(writeTo)
+			end
+		end
+	end
+	return rebootNeeded
+end
+
+function installPackage(package)
+	print(string.format("Installing package %s-%s...", package.id.name, package.id.version))
+	local result = writePackageFiles(packageRepository, package.contents)
+	local installed = getInstalledPackageNames()
+	-- TODO: We need to indicate which packages the user installed and which we added as dependencies.
+	installed[package.id.name] = package.id
+	serializer.writeToFile(getPackageListPath(), installed)
+	return result
+end
+
+function installBundle(bundle)
+	local rebootNeeded = false
+	for _, package in pairs(bundle) do
+		rebootNeeded = installPackage(package) or rebootNeeded
+	end
+	if rebootNeeded then
+		print("Rebooting...")
+		os.sleep(2)
+		os.reboot()
+	end
+	return false
+end
+
+-- TODO: This should be internal to the amber-server repository.
+net.registerMessageHandler("bundleDownload", installBundle)

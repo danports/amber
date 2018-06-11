@@ -2,6 +2,7 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
+os.loadAPI("apis/amber")
 local github = dofile("apis/github")
 
 -- Version calculations
@@ -77,7 +78,7 @@ local function loadFilesIn(path)
 			fileData[v] = loadFilesIn(filePath)
 		else
 			local file = fs.open(filePath, "r")
-			fileData[v] = net.encode(file.readAll())
+			fileData[v] = amber.encode(file.readAll())
 			file.close()
 		end
 	end
@@ -155,10 +156,10 @@ Repository.GitHub.bindPackage = function(self, packageId)
 	end
 	
 	local contents = {}
-	packageTree:copyTo(contents, nil, net.encode)
+	packageTree:copyTo(contents, nil, amber.encode)
 	local manifest = {}
 	if contents.manifest then
-		manifest = textutils.unserialize(net.decode(contents.manifest))
+		manifest = textutils.unserialize(amber.decode(contents.manifest))
 	end
 	return {
 		id = {name = packageId.name, version = version},
@@ -244,11 +245,11 @@ end
 
 -- Update broadcasting
 function deployUpdate(toDeploy)
-	if toDeploy == nil or toDeploy == "updates" then
-		-- Deploy updates to the update server first.
-		print("Installing update server update...")
+	if toDeploy == nil or toDeploy == "amber-server" then
+		-- Deploy our own updates first.
+		print("Installing Amber server update...")
 		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
-		return net.installBundle(getBundle({{name = "updates"}}))
+		return amber.installBundle(getBundle({{name = "amber-server"}}))
 	else
 		broadcastUpdate(toDeploy)
 	end
@@ -259,7 +260,8 @@ function broadcastUpdate(toDeploy)
 	if toDeploy ~= nil then
 		updating = toDeploy
 	end
-	print(string.format("Broadcasting availability of system update: %s", updating))
+	print(string.format("Broadcasting availability of package update: %s", updating))
+	-- TODO: rednet.broadcast, really??
 	rednet.broadcast({"packageUpdateAvailable", toDeploy})
 end
 
@@ -277,10 +279,10 @@ end
 function onStartup()
 	net.registerRawMessageHandler("sendPackages", sendPackages)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
-	net.removeHandler("packageUpdateAvailable") -- We deploy our own updates.
 
 	print(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
-	dns.register("updates")
+	dns.register("updates") -- TODO: Drop legacy protocol name.
+	dns.register("amber")
 	readState()
 end
 

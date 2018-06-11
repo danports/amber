@@ -1,0 +1,6 @@
+{
+	dependencies = {
+		{name = "serializer"},
+		{name = "net"}
+	}
+}

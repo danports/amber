@@ -11,24 +11,24 @@ end
 
 os.loadAPI("apis/events")
 os.loadAPI("apis/net")
+os.loadAPI("apis/amber")
 
 -- Edit templates interactively.
-net.setEditHandler(function(file)
+amber.setEditHandler(function(file)
 	shell.run("edit", "/" .. file)
 end)
 -- Download packages into the current folder.
-net.setPackageRepository(shell.dir())
+amber.setPackageRepository(shell.dir())
 
 -- TODO: install/remove/list/search commands.
 local args = {...}
 local package = args[1]
 
 net.openModem()
--- TODO: Extract net library bits.
 if package == nil then
-	net.updatePackages()
+	amber.updatePackages()
 else
-	net.requestPackages({{name = package}})
+	amber.requestPackages({{name = package}})
 end
 
 -- Wait for the packages requested to arrive.
