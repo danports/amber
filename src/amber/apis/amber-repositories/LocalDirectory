@@ -14,11 +14,7 @@ end
 LocalDirectory.getAllVersions = function(self, packageId)
 	local path = self:getPackageRootPath(packageId)
 	if fs.isDir(path) then
-		local versions = {}
-		for _, item in pairs(fs.list(path)) do
-			table.insert(versions, version.new(item))
-		end
-		return versions
+		return fs.list(path)
 	end
 end
 LocalDirectory.getLatestVersion = function(self, packageId)
@@ -27,9 +23,9 @@ LocalDirectory.getLatestVersion = function(self, packageId)
 		return
 	end
 	local latest
-	for _, version in pairs(versions) do
-		if latest == nil or latest:compareTo(version) < 0 then
-			latest = version
+	for _, v in pairs(versions) do
+		if latest == nil or version.new(latest):compareTo(version.new(v)) < 0 then
+			latest = v
 		end
 	end
 	return latest

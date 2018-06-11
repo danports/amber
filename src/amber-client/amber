@@ -33,12 +33,3 @@ if package == nil then
 else
 	amber.requestPackages({{name = package}})
 end
-
--- Wait for the packages requested to arrive.
-events.runMessageLoop()
-
--- TODO: Next steps:
--- Extract package repository bits into their own library and use that in the client and server.
--- Add an amber-server repository that queries the remote server for the bits.
--- Change the repository interface to allow requesting multiple packages at once.
--- Only request the remaining packages from the other repositories.
