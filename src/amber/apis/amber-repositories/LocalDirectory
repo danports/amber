@@ -1,0 +1,78 @@
+os.loadAPI("apis/version")
+
+local LocalDirectory = {}
+LocalDirectory.__index = LocalDirectory
+LocalDirectory.new = function(data)
+	return setmetatable({path = data.path or "/packages"}, LocalDirectory)
+end
+LocalDirectory.getPackageRootPath = function(self, packageId)
+	return fs.combine(self.path, packageId.name)
+end
+LocalDirectory.getPackagePath = function(self, packageId)
+	return fs.combine(self:getPackageRootPath(packageId), packageId.version)
+end
+LocalDirectory.getAllVersions = function(self, packageId)
+	local path = self:getPackageRootPath(packageId)
+	if fs.isDir(path) then
+		local versions = {}
+		for _, item in pairs(fs.list(path)) do
+			table.insert(versions, version.new(item))
+		end
+		return versions
+	end
+end
+LocalDirectory.getLatestVersion = function(self, packageId)
+	local versions = self:getAllVersions(packageId)
+	if versions == nil then
+		return
+	end
+	local latest
+	for _, version in pairs(versions) do
+		if latest == nil or latest:compareTo(version) < 0 then
+			latest = version
+		end
+	end
+	return latest
+end
+local function loadFilesIn(path)
+	local files = fs.list(path)
+	local fileData = {}
+	for _, v in pairs(files) do
+		local filePath = fs.combine(path, v)
+		if fs.isDir(filePath) then
+			fileData[v] = loadFilesIn(filePath)
+		else
+			local file = fs.open(filePath, "r")
+			fileData[v] = amber.encode(file.readAll())
+			file.close()
+		end
+	end
+	return fileData
+end
+LocalDirectory.readPackage = function(self, packageId)
+	local path = self:getPackagePath(packageId)
+	if fs.isDir(path) then
+		-- TODO: Extract manifest handling out of repository code.
+		-- TODO: Remove the manifest from the contents everywhere.
+		local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
+		return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
+	end
+end
+LocalDirectory.bindPackageId = function(self, packageId)
+	local version = packageId.version
+	if version == nil then
+		version = self:getLatestVersion(packageId)
+	end
+	if version == nil then
+		return nil
+	end
+	return {name = packageId.name, version = version}
+end
+LocalDirectory.bindPackage = function(self, packageId)
+	local package = self:bindPackageId(packageId)
+	if package ~= nil then
+		return self:readPackage(package)
+	end
+end
+
+return LocalDirectory

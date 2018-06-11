@@ -13,6 +13,9 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/amber")
 
+-- Connect to an Amber server by default, since we don't have any configuration to go on.
+amber.initializeClient({{type = "AmberServer"}})
+
 -- Edit templates interactively.
 amber.setEditHandler(function(file)
 	shell.run("edit", "/" .. file)

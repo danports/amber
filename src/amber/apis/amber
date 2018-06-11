@@ -1,6 +1,95 @@
 os.loadAPI("apis/serializer")
 os.loadAPI("apis/net")
+os.loadAPI("apis/version")
 
+-- Package bundling
+-- TODO: Extract package ID, package, and package bundle concepts.
+function formatPackageId(packageId)
+	local result = packageId.name
+	if packageId.version ~= nil then
+		-- TODO: Revisit this - use a different character to separate name & version.
+		result = result .. "-" .. packageId.version
+	end
+	return result
+end
+
+function packageSatisfies(package, packageId)
+	if package.id.name ~= packageId.name then
+		return false
+	end
+	if packageId.version == nil then
+		return true
+	end
+	return version.new(packageId.version):compareTo(version.new(package.id.version)) == 0
+end
+
+function bundleContains(msg, packageId)
+	for _, package in pairs(msg) do
+		if packageSatisfies(package, packageId) then
+			return true
+		end
+	end
+	return false
+end
+
+function bundlePackage(msg, packageId)
+	if bundleContains(msg, packageId) then
+		return
+	end
+	local package = bindPackage(packageId)
+	if package == nil then
+		-- TODO: Return an error along with the resolved packages to the client.
+		print(string.format("ERROR: Unable to locate package %s; ignoring it", formatPackageId(packageId)))
+		return
+	end
+	table.insert(msg, package)
+	bundlePackages(msg, package.manifest.dependencies)
+end
+
+function bundlePackages(msg, toPackage)
+	if toPackage == nil then
+		return
+	end
+	for _, packageId in pairs(toPackage) do
+		bundlePackage(msg, packageId)
+	end
+end
+
+function getBundle(toPackage)
+	local bundle = {}
+	bundlePackages(bundle, toPackage)
+	return bundle
+end
+
+-- Package binding
+local repositories = {}
+
+function bindPackage(packageId)
+	for _, repo in pairs(repositories) do
+		local result = repo:bindPackage(packageId)
+		if result ~= nil then
+			return result
+		end
+	end
+end
+
+function initializeClient(defaultConfig)
+	local repoConfigs = serializer.readFromFile("/.repositories")
+	if next(repoConfigs) == nil and defaultConfig ~= nil then
+		repoConfigs = defaultConfig
+	end
+	
+	-- TODO: Load these lazily (we might not need them all).
+	local repoTypes = {}
+	for _, path in pairs(fs.list("/apis/amber-repositories")) do
+		repoTypes[path] = dofile(fs.combine("/apis/amber-repositories", path))
+	end
+	for _, repoConfig in pairs(repoConfigs) do
+		table.insert(repositories, repoTypes[repoConfig.type].new(repoConfig))
+	end
+end
+
+-- Local package installation
 -- TODO: Introduce the concept of a local package installation.
 -- Then have operations like install, remove, etc. on the local installation.
 local packageRepository = ""
@@ -19,9 +108,8 @@ function decode(data)
 end
 
 function requestPackages(packages)
-	-- TODO: Use the log library.
-	print(string.format("Requesting %i packages...", #packages))
-	net.sendMessage("amber://", "sendPackages", packages)
+	local bundle = getBundle(packages)
+	installBundle(bundle)
 end
 
 function getPackageListPath()
@@ -113,6 +201,3 @@ function installBundle(bundle)
 	end
 	return false
 end
-
--- TODO: This should be internal to the amber-server repository.
-net.registerMessageHandler("bundleDownload", installBundle)

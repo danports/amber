@@ -1,0 +1,60 @@
+local github = dofile("apis/github")
+
+local GitHub = {}
+GitHub.__index = GitHub
+GitHub.new = function(data)
+	local auth
+	if data.auth then
+		auth = github.Auth.new(data.auth.type, data.auth.user, data.auth.token)
+	end
+	local repo = github.repo(data.user, data.name, auth)
+	return setmetatable({
+		repo = repo,
+		defaultVersion = data.defaultVersion,
+		path = data.path or "src"
+	}, GitHub)
+end
+GitHub.bindPackageId = function(self, packageId)
+	local version = packageId.version
+	local tree
+	if version == nil then
+		if self.defaultVersion then
+			version = self.defaultVersion
+			tree = self.repo:tree(version)
+		else
+			local release = self.repo:latestRelease()
+			version = release.tag
+			tree = release:tree()
+		end
+	else
+		local release = self.repo:releaseByTag(version)
+		tree = release:tree()
+	end
+	return version, tree
+end
+GitHub.bindPackage = function(self, packageId)
+	local version, tree = self:bindPackageId(packageId)
+	local repoRoot = tree:getChild(self.path)
+	if repoRoot == nil then
+		print(string.format("ERROR: Unable to locate repository root %s", self.path))
+		return
+	end
+	local packageTree = repoRoot:getChild(packageId.name)
+	if packageTree == nil then
+		return
+	end
+	
+	local contents = {}
+	packageTree:copyTo(contents, nil, amber.encode)
+	local manifest = {}
+	if contents.manifest then
+		manifest = textutils.unserialize(amber.decode(contents.manifest))
+	end
+	return {
+		id = {name = packageId.name, version = version},
+		contents = contents,
+		manifest = manifest
+	}
+end
+
+return GitHub

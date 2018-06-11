@@ -3,244 +3,19 @@ os.loadAPI("apis/net")
 os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
 os.loadAPI("apis/amber")
-local github = dofile("apis/github")
 
--- Version calculations
-function parseVersion(version)
-	local parsed = {}
-	version:gsub("(%d+)", function(match) table.insert(parsed, tonumber(match)) end)
-	return parsed
-end
-
-function compareVersions(versionA, versionB)
-	-- TODO: Doesn't handle trailing zeroes correctly. Could iterate through max(#a, #b).
-	-- We should probably just imagine that the versions both have an unlimited number of 
-	-- trailing zeroes.
-	local a = parseVersion(versionA)
-	local b = parseVersion(versionB)
-	for i, aPart in ipairs(a) do
-		local bPart = b[i]
-		if bPart == nil then
-			return 1 -- More numbers means a is a later version.
-		else
-			if aPart < bPart then
-				return -1
-			elseif aPart > bPart then
-				return 1
-			end
-		end
-	end
-	-- If they are equal so far but b has more numbers, b is later.
-	if #b > #a then
-		return -1
-	end
-	return 0
-end
-
--- Local repositories
-local Repository = {}
-Repository.localDirectory = {}
-Repository.localDirectory.__index = Repository.localDirectory
-Repository.localDirectory.new = function(data)
-	return setmetatable({path = data.path or "/packages"}, Repository.localDirectory)
-end
-Repository.localDirectory.getPackageRootPath = function(self, packageId)
-	return fs.combine(self.path, packageId.name)
-end
-Repository.localDirectory.getPackagePath = function(self, packageId)
-	return fs.combine(self:getPackageRootPath(packageId), packageId.version)
-end
-Repository.localDirectory.getAllVersions = function(self, packageId)
-	local path = self:getPackageRootPath(packageId)
-	if fs.isDir(path) then
-		return fs.list(path)
-	end
-end
-Repository.localDirectory.getLatestVersion = function(self, packageId)
-	local versions = self:getAllVersions(packageId)
-	if versions == nil then
-		return
-	end
-	local latest
-	for _, version in pairs(versions) do
-		if latest == nil or compareVersions(latest, version) < 0 then
-			latest = version
-		end
-	end
-	return latest
-end
-local function loadFilesIn(path)
-	local files = fs.list(path)
-	local fileData = {}
-	for _, v in pairs(files) do
-		local filePath = fs.combine(path, v)
-		if fs.isDir(filePath) then
-			fileData[v] = loadFilesIn(filePath)
-		else
-			local file = fs.open(filePath, "r")
-			fileData[v] = amber.encode(file.readAll())
-			file.close()
-		end
-	end
-	return fileData
-end
-Repository.localDirectory.readPackage = function(self, packageId)
-	local path = self:getPackagePath(packageId)
-	if fs.isDir(path) then
-		-- TODO: Extract manifest handling out of repository code.
-		-- TODO: Remove the manifest from the contents everywhere.
-		local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
-		return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
-	end
-end
-Repository.localDirectory.bindPackageId = function(self, packageId)
-	local version = packageId.version
-	if version == nil then
-		version = self:getLatestVersion(packageId)
-	end
-	if version == nil then
-		return nil
-	end
-	return {name = packageId.name, version = version}
-end
-Repository.localDirectory.bindPackage = function(self, packageId)
-	local package = self:bindPackageId(packageId)
-	if package ~= nil then
-		return self:readPackage(package)
-	end
-end
-
--- GitHub repositories
-Repository.GitHub = {}
-Repository.GitHub.__index = Repository.GitHub
-Repository.GitHub.new = function(data)
-	local auth
-	if data.auth then
-		auth = github.Auth.new(data.auth.type, data.auth.user, data.auth.token)
-	end
-	local repo = github.repo(data.user, data.name, auth)
-	return setmetatable({
-		repo = repo,
-		defaultVersion = data.defaultVersion,
-		path = data.path or "src"
-	}, Repository.GitHub)
-end
-Repository.GitHub.bindPackageId = function(self, packageId)
-	local version = packageId.version
-	local tree
-	if version == nil then
-		if self.defaultVersion then
-			version = self.defaultVersion
-			tree = self.repo:tree(version)
-		else
-			local release = self.repo:latestRelease()
-			version = release.tag
-			tree = release:tree()
-		end
-	else
-		local release = self.repo:releaseByTag(version)
-		tree = release:tree()
-	end
-	return version, tree
-end
-Repository.GitHub.bindPackage = function(self, packageId)
-	local version, tree = self:bindPackageId(packageId)
-	local repoRoot = tree:getChild(self.path)
-	if repoRoot == nil then
-		print(string.format("ERROR: Unable to locate repository root %s", self.path))
-		return
-	end
-	local packageTree = repoRoot:getChild(packageId.name)
-	if packageTree == nil then
-		return
-	end
-	
-	local contents = {}
-	packageTree:copyTo(contents, nil, amber.encode)
-	local manifest = {}
-	if contents.manifest then
-		manifest = textutils.unserialize(amber.decode(contents.manifest))
-	end
-	return {
-		id = {name = packageId.name, version = version},
-		contents = contents,
-		manifest = manifest
-	}
-end
-
--- Package bundling
--- TODO: Extract package ID, package, and package bundle concepts.
-function formatPackageId(packageId)
-	local result = packageId.name
-	if packageId.version ~= nil then
-		-- TODO: Revisit this - use a different character to separate name & version.
-		result = result .. "-" .. packageId.version
-	end
-	return result
-end
-
-function packageSatisfies(package, packageId)
-	if package.id.name ~= packageId.name then
-		return false
-	end
-	if packageId.version == nil then
-		return true
-	end
-	return compareVersions(packageId.version, package.id.version) == 0
-end
-
-function bundleContains(msg, packageId)
-	for _, package in pairs(msg) do
-		if packageSatisfies(package, packageId) then
-			return true
-		end
-	end
-	return false
-end
-
-function bindPackage(packageId)
-	for _, repoConfig in pairs(repositories) do
-		-- TODO: Instantiate these when reading the config files on startup.
-		local repo = Repository[repoConfig.type].new(repoConfig)
-		local result = repo:bindPackage(packageId)
-		if result ~= nil then
-			return result
-		end
-	end
-end
-
-function bundlePackage(msg, packageId)
-	if bundleContains(msg, packageId) then
-		return
-	end
-	local package = bindPackage(packageId)
-	if package == nil then
-		-- TODO: Return an error along with the resolved packages to the client.
-		print(string.format("ERROR: Unable to locate package %s; ignoring it", formatPackageId(packageId)))
-		return
-	end
-	table.insert(msg, package)
-	bundlePackages(msg, package.manifest.dependencies)
-end
-
-function bundlePackages(msg, toPackage)
-	if toPackage == nil then
-		return
-	end
-	for _, packageId in pairs(toPackage) do
-		bundlePackage(msg, packageId)
-	end
-end
-
-function getBundle(toPackage)
-	local bundle = {}
-	bundlePackages(bundle, toPackage)
-	return bundle
-end
-
+-- Bundle requests (legacy)
 function sendPackages(args, sender)
-	print(string.format("Sending %i packages to %i", #args[2], sender))
-	net.sendMessage(sender, "bundleDownload", getBundle(args[2]))
+	local packages = args[2]
+	print(string.format("Sending %i packages to %i", #packages, sender))
+	net.sendMessage(sender, "bundleDownload", amber.getBundle(packages))
+end
+
+-- Package requests
+function downloadPackage(args, sender)
+	local packageId = args[2]
+	print(string.format("Sending package %s to %i", packageId.name, sender))
+	net.sendMessage(sender, "packageDownload", amber.bindPackage(packageId))
 end
 
 -- Update broadcasting
@@ -249,7 +24,7 @@ function deployUpdate(toDeploy)
 		-- Deploy our own updates first.
 		print("Installing Amber server update...")
 		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
-		return amber.installBundle(getBundle({{name = "amber-server"}}))
+		return amber.installBundle(amber.getBundle({{name = "amber-server"}}))
 	else
 		broadcastUpdate(toDeploy)
 	end
@@ -267,7 +42,7 @@ end
 
 -- Startup
 function readState()
-	repositories = serializer.readFromFile("/repositories")
+	amber.initializeClient()
 
 	local state = serializer.readFromFile("/state")
 	if state.broadcastOnStartup then
@@ -278,6 +53,7 @@ end
 
 function onStartup()
 	net.registerRawMessageHandler("sendPackages", sendPackages)
+	net.registerRawMessageHandler("downloadPackage", downloadPackage)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 
 	print(string.format("Amber: Listening on %s...", net.openModem(config.modem)))

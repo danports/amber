@@ -1,0 +1,30 @@
+local Version = {}
+Version.__index = Version
+Version.compareTo = function(a, b)
+	-- TODO: Doesn't handle trailing zeroes correctly. Could iterate through max(#a, #b).
+	-- We should probably just imagine that the versions both have an unlimited number of 
+	-- trailing zeroes.
+	for i, aPart in ipairs(a.components) do
+		local bPart = b.components[i]
+		if bPart == nil then
+			return 1 -- More numbers means a is a later version.
+		else
+			if aPart < bPart then
+				return -1
+			elseif aPart > bPart then
+				return 1
+			end
+		end
+	end
+	-- If they are equal so far but b has more numbers, b is later.
+	if #b.components > #a.components then
+		return -1
+	end
+	return 0
+end
+
+function new(version)
+	local parsed = {}
+	version:gsub("(%d+)", function(match) table.insert(parsed, tonumber(match)) end)
+	return setmetatable({components = parsed}, Version)
+end

@@ -1,5 +1,0 @@
-{
-	dependencies = {
-		{name = "amber-server"}
-	}
-}
