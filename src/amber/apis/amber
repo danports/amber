@@ -2,7 +2,6 @@ os.loadAPI("apis/serializer")
 os.loadAPI("apis/net")
 os.loadAPI("apis/version")
 
--- Package bundling
 -- TODO: Extract package ID, package, and package bundle concepts.
 function formatPackageId(packageId)
 	local result = packageId.name
@@ -13,7 +12,58 @@ function formatPackageId(packageId)
 	return result
 end
 
-function packageSatisfies(package, packageId)
+-- Package binding
+PackageClient = {}
+PackageClient.__index = PackageClient
+PackageClient.new = function(repoConfigs, repoTypesPath)
+	local repositories = {}
+	local repoTypes = {}
+	for _, repoConfig in pairs(repoConfigs) do
+		local repoType = repoTypes[repoConfig.type]
+		if repoType == nil then
+			-- TODO: Better error handling.
+			repoType = dofile(fs.combine(repoTypesPath, repoConfig.type))
+			repoTypes[repoConfig.type] = repoType
+		end
+		table.insert(repositories, repoType.new(repoConfig))
+	end
+
+	return setmetatable({repositories = repositories}, PackageClient)
+end
+PackageClient.fromConfigurationPath = function(path, defaultConfig)
+	path = path or ""
+	local repoConfigs = serializer.readFromFile(fs.combine(path, ".repositories"))
+	if next(repoConfigs) == nil and defaultConfig ~= nil then
+		repoConfigs = defaultConfig
+	end
+	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories")
+end
+local function createPackage(package)
+	if package.manifest then
+		return package
+	end
+	
+	-- TODO: The latter is a legacy path for backwards compatibility.
+	local paths = {".manifest", "manifest"}
+	for _, path in ipairs(paths) do
+		local contents = package.contents[path]
+		if contents then
+			package.manifest = textutils.unserialize(decode(contents))
+			package.contents[path] = nil
+			break
+		end
+	end
+	return package
+end
+PackageClient.bindPackage = function(self, packageId)
+	for _, repo in pairs(self.repositories) do
+		local result = repo:bindPackage(packageId, encode)
+		if result ~= nil then
+			return createPackage(result)
+		end
+	end
+end
+local function packageSatisfies(package, packageId)
 	if package.id.name ~= packageId.name then
 		return false
 	end
@@ -22,8 +72,7 @@ function packageSatisfies(package, packageId)
 	end
 	return version.new(packageId.version):compareTo(version.new(package.id.version)) == 0
 end
-
-function bundleContains(msg, packageId)
+local function bundleContains(msg, packageId)
 	for _, package in pairs(msg) do
 		if packageSatisfies(package, packageId) then
 			return true
@@ -31,75 +80,35 @@ function bundleContains(msg, packageId)
 	end
 	return false
 end
-
-function bundlePackage(msg, packageId)
+PackageClient.bundlePackage = function(self, msg, packageId, userInstalled)
 	if bundleContains(msg, packageId) then
 		return
 	end
-	local package = bindPackage(packageId)
+	local package = self:bindPackage(packageId)
 	if package == nil then
-		-- TODO: Return an error along with the resolved packages to the client.
-		print(string.format("ERROR: Unable to locate package %s; ignoring it", formatPackageId(packageId)))
-		return
+		return {errorMessage = string.format("Unable to locate package %s", formatPackageId(packageId))}
 	end
+	package.userInstalled = userInstalled
 	table.insert(msg, package)
-	bundlePackages(msg, package.manifest.dependencies)
+	self:bundlePackages(msg, package.manifest.dependencies)
 end
-
-function bundlePackages(msg, toPackage)
+PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled)
 	if toPackage == nil then
 		return
 	end
 	for _, packageId in pairs(toPackage) do
-		bundlePackage(msg, packageId)
+		self:bundlePackage(msg, packageId, userInstalled)
 	end
 end
-
-function getBundle(toPackage)
+PackageClient.getBundle = function(self, toPackage, userInstalled)
 	local bundle = {}
-	bundlePackages(bundle, toPackage)
+	self:bundlePackages(bundle, toPackage, userInstalled)
 	return bundle
 end
 
--- Package binding
-local repositories = {}
-
-function bindPackage(packageId)
-	for _, repo in pairs(repositories) do
-		local result = repo:bindPackage(packageId)
-		if result ~= nil then
-			return result
-		end
-	end
-end
-
-function initializeClient(defaultConfig)
-	local repoConfigs = serializer.readFromFile("/.repositories")
-	if next(repoConfigs) == nil and defaultConfig ~= nil then
-		repoConfigs = defaultConfig
-	end
-	
-	-- TODO: Load these lazily (we might not need them all).
-	local repoTypes = {}
-	for _, path in pairs(fs.list("/apis/amber-repositories")) do
-		repoTypes[path] = dofile(fs.combine("/apis/amber-repositories", path))
-	end
-	for _, repoConfig in pairs(repoConfigs) do
-		table.insert(repositories, repoTypes[repoConfig.type].new(repoConfig))
-	end
-end
-
--- Local package installation
--- TODO: Introduce the concept of a local package installation.
--- Then have operations like install, remove, etc. on the local installation.
-local packageRepository = ""
-
-function setPackageRepository(path)
-	packageRepository = path
-end
-
+-- Encoding
+-- TODO: Eliminate these - they shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
 function encode(data)
-	-- TODO: Eliminate this - it shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
 	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
 end
 
@@ -107,40 +116,34 @@ function decode(data)
 	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@1", "\n"), "@2", "\""), "@3", "\\"), "@0", "@")
 end
 
-function requestPackages(packages)
-	local bundle = getBundle(packages)
-	installBundle(bundle)
+-- Local package installation
+-- TODO: Add other operations like remove, search, info, etc. on the installation.
+PackageInstallation = {}
+PackageInstallation.__index = PackageInstallation
+PackageInstallation.new = function(path, onEdit, onProgress)
+	return setmetatable({
+		path = path or "",
+		onEdit = onEdit,
+		onProgress = onProgress or function() end
+	}, PackageInstallation)
 end
-
-function getPackageListPath()
-	return fs.combine(packageRepository, "packageList")
+PackageInstallation.getPackageListPaths = function(self)
+	-- TODO: The latter path is a legacy one that exists only for backwards compatibility.
+	return {fs.combine(self.path, ".packages"), fs.combine(self.path, "packageList")}
 end
-
-function getInstalledPackageNames()
-	return serializer.readFromFile(getPackageListPath())
-end
-
-function updatePackages(availableNow)
-	local installed = getInstalledPackageNames()
-	if installed == nil then
-		return
-	end
-	local toRequest = {}
-	for _, pkg in pairs(installed) do
-		if availableNow == nil or availableNow == pkg.name then
-			table.insert(toRequest, {name = pkg.name})
+PackageInstallation.getInstalledPackages = function(self)
+	for _, path in ipairs(self:getPackageListPaths()) do
+		local contents = serializer.readFromFile(path)
+		if next(contents) ~= nil then
+			if contents.version == nil then
+				contents = {version = 1, packages = contents}
+			end
+			return contents
 		end
 	end
-	requestPackages(toRequest)
+	return {version = 1, packages = {}}
 end
-
-local editHandler
-
-function setEditHandler(handler)
-	editHandler = handler
-end
-
-function writePackageFiles(path, data)
+PackageInstallation.writePackageFiles = function(self, path, data)
 	local rebootNeeded = false
 	if not fs.isDir(path) then
 		fs.makeDir(path)
@@ -148,56 +151,98 @@ function writePackageFiles(path, data)
 	for file, contents in pairs(data) do
 		local destination = fs.combine(path, file)
 		if type(contents) == "table" then
-			rebootNeeded = writePackageFiles(destination, contents) or rebootNeeded
+			rebootNeeded = self:writePackageFiles(destination, contents) or rebootNeeded
 		else
 			if file == "startup" then
 				rebootNeeded = true
 			end
 			local writeTo = destination
 			local editFile = false
+			-- TODO: Write to the template file AND copy it to the destination path if it does not exist.
+			-- That way we can detect changes to the file when a new version is installed.
 			if destination:sub(-2) == ".t" then
 				local baseName = destination:sub(1, #destination - 2)
 				if not fs.exists(baseName) then
 					writeTo = baseName
 					editFile = true
-					print(string.format("%s => %s", destination, writeTo))
+					self.onProgress(string.format("%s => %s", destination, writeTo))
 				else
-					print(writeTo)
+					self.onProgress(writeTo)
 				end
 			else
-				print(writeTo)
+				self.onProgress(writeTo)
 			end
 			local file = fs.open(writeTo, "w")
 			file.write(decode(contents))
 			file.close()
-			if editFile and editHandler ~= nil then
-				print(string.format("Editing: %s", writeTo))
-				editHandler(writeTo)
+			if editFile and self.onEdit ~= nil then
+				self.onProgress(string.format("Editing: %s", writeTo))
+				self.onEdit(writeTo)
 			end
 		end
 	end
 	return rebootNeeded
 end
-
-function installPackage(package)
-	print(string.format("Installing package %s-%s...", package.id.name, package.id.version))
-	local result = writePackageFiles(packageRepository, package.contents)
-	local installed = getInstalledPackageNames()
-	-- TODO: We need to indicate which packages the user installed and which we added as dependencies.
-	installed[package.id.name] = package.id
-	serializer.writeToFile(getPackageListPath(), installed)
+local function extractPackageMetadata(package)
+	local metadata = {}
+	for k, v in pairs(package) do
+		if k == "contents" then
+			metadata[k] = {}
+			for path in pairs(v) do
+				metadata[k][path] = {}
+			end
+		else
+			metadata[k] = v
+		end
+	end
+	return metadata
+end
+PackageInstallation.installPackage = function(self, package)
+	if package.errorMessage ~= nil then
+		-- TODO: onError callback.
+		self.onProgress(string.format("ERROR: %s", package.errorMessage))
+		return
+	end
+	
+	self.onProgress(string.format("Installing package %s-%s...", package.id.name, package.id.version))
+	-- TODO: Remove files installed by the previous version which are obsolete.
+	local result = self:writePackageFiles(self.path, package.contents)
+	local installed = self:getInstalledPackages()
+	local existing = installed.packages[package.id.name] or {}
+	local newMetadata = extractPackageMetadata(package)
+	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
+	installed.packages[package.id.name] = newMetadata
+	local paths = self:getPackageListPaths()
+	serializer.writeToFile(paths[1], installed)
+	-- Clean up legacy files.
+	for i = 2, #paths do
+		fs.delete(paths[i])
+	end
 	return result
 end
-
-function installBundle(bundle)
+PackageInstallation.installBundle = function(self, bundle)
 	local rebootNeeded = false
 	for _, package in pairs(bundle) do
-		rebootNeeded = installPackage(package) or rebootNeeded
+		rebootNeeded = self:installPackage(package) or rebootNeeded
 	end
 	if rebootNeeded then
-		print("Rebooting in 3 seconds...")
+		self.onProgress("Rebooting...")
 		os.sleep(3)
 		os.reboot()
 	end
-	return false
+end
+PackageInstallation.installPackages = function(self, client, packages, userInstalled)
+	if userInstalled == nil then
+		userInstalled = true
+	end
+	local bundle = client:getBundle(packages, userInstalled)
+	self:installBundle(bundle)
+end
+PackageInstallation.updatePackages = function(self, client)
+	local installed = self:getInstalledPackages()
+	local toRequest = {}
+	for _, pkg in pairs(installed.packages) do
+		table.insert(toRequest, {name = pkg.name})
+	end
+	self:installPackages(client, toRequest, false)
 end

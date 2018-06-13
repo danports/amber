@@ -1,30 +1,39 @@
+os.loadAPI("apis/log")
 os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
 os.loadAPI("apis/amber")
 
--- Bundle requests (legacy)
+-- Bundle requests (TODO: This is legacy code.)
 function sendPackages(args, sender)
 	local packages = args[2]
-	print(string.format("Sending %i packages to %i", #packages, sender))
-	net.sendMessage(sender, "bundleDownload", amber.getBundle(packages))
+	log.info(string.format("Sending %i packages to %i", #packages, sender))
+	net.sendMessage(sender, "bundleDownload", client:getBundle(packages, true))
 end
 
 -- Package requests
 function downloadPackage(args, sender)
 	local packageId = args[2]
-	print(string.format("Sending package %s to %i", packageId.name, sender))
-	net.sendMessage(sender, "packageDownload", amber.bindPackage(packageId))
+	log.info(string.format("Sending package %s to %i", packageId.name, sender))
+	local package = client:bindPackage(packageId)
+	if package == nil then
+		local errorMessage = string.format("Unable to bind package %s", packageId.name)
+		log.err(errorMessage)
+		net.sendMessage(sender, "packageDownload", {errorMessage = errorMessage})
+	else
+		net.sendMessage(sender, "packageDownload", package)
+	end
 end
 
 -- Update broadcasting
 function deployUpdate(toDeploy)
 	if toDeploy == nil or toDeploy == "amber-server" then
 		-- Deploy our own updates first.
-		print("Installing Amber server update...")
+		log.info("Installing Amber server update...")
 		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
-		return amber.installBundle(amber.getBundle({{name = "amber-server"}}))
+		local installation = amber.PackageInstallation.new(nil, nil, log.info)
+		installation:installPackages(client, {{name = "amber-server"}})
 	else
 		broadcastUpdate(toDeploy)
 	end
@@ -35,14 +44,14 @@ function broadcastUpdate(toDeploy)
 	if toDeploy ~= nil then
 		updating = toDeploy
 	end
-	print(string.format("Broadcasting availability of package update: %s", updating))
+	log.info(string.format("Broadcasting availability of package update: %s", updating))
 	-- TODO: rednet.broadcast, really??
 	rednet.broadcast({"packageUpdateAvailable", toDeploy})
 end
 
 -- Startup
 function readState()
-	amber.initializeClient()
+	client = amber.PackageClient.fromConfigurationPath()
 
 	local state = serializer.readFromFile("/state")
 	if state.broadcastOnStartup then
@@ -56,7 +65,7 @@ function onStartup()
 	net.registerRawMessageHandler("downloadPackage", downloadPackage)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 
-	print(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
+	log.info(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
 	dns.register("updates") -- TODO: Drop legacy protocol name.
 	dns.register("amber")
 	readState()

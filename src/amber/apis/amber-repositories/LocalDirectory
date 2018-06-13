@@ -30,7 +30,7 @@ LocalDirectory.getLatestVersion = function(self, packageId)
 	end
 	return latest
 end
-local function loadFilesIn(path)
+local function loadFilesIn(path, encode)
 	local files = fs.list(path)
 	local fileData = {}
 	for _, v in pairs(files) do
@@ -39,19 +39,18 @@ local function loadFilesIn(path)
 			fileData[v] = loadFilesIn(filePath)
 		else
 			local file = fs.open(filePath, "r")
-			fileData[v] = amber.encode(file.readAll())
+			fileData[v] = encode(file.readAll())
 			file.close()
 		end
 	end
 	return fileData
 end
-LocalDirectory.readPackage = function(self, packageId)
+LocalDirectory.readPackage = function(self, packageId, encode)
 	local path = self:getPackagePath(packageId)
 	if fs.isDir(path) then
-		-- TODO: Extract manifest handling out of repository code.
-		-- TODO: Remove the manifest from the contents everywhere.
-		local manifest = serializer.readFromFile(fs.combine(path, "manifest"))
-		return {id = packageId, contents = loadFilesIn(path), manifest = manifest}
+		return {id = packageId, contents = loadFilesIn(path, encode)}
+	else
+		return nil, "Unable to locate package path"
 	end
 end
 LocalDirectory.bindPackageId = function(self, packageId)
@@ -60,15 +59,16 @@ LocalDirectory.bindPackageId = function(self, packageId)
 		version = self:getLatestVersion(packageId)
 	end
 	if version == nil then
-		return nil
+		return nil, "Unable to find latest version of package"
 	end
 	return {name = packageId.name, version = version}
 end
-LocalDirectory.bindPackage = function(self, packageId)
-	local package = self:bindPackageId(packageId)
-	if package ~= nil then
-		return self:readPackage(package)
+LocalDirectory.bindPackage = function(self, packageId, encode)
+	local package, errorMessage = self:bindPackageId(packageId)
+	if package == nil then
+		return nil, errorMessage
 	end
+	return self:readPackage(package, encode)
 end
 
 return LocalDirectory

@@ -13,23 +13,37 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/amber")
 
--- Connect to an Amber server by default, since we don't have any configuration to go on.
-amber.initializeClient({{type = "AmberServer"}})
+local path = shell.dir()
+-- Connect to an Amber server by default.
+local client = amber.PackageClient.fromConfigurationPath(path, {{type = "AmberServer"}})
+local installation = amber.PackageInstallation.new(
+	path,
+	-- Edit template files interactively.
+	function(file) shell.run("edit", "/" .. file) end,
+	function(progress) print(progress) end
+)
 
--- Edit templates interactively.
-amber.setEditHandler(function(file)
-	shell.run("edit", "/" .. file)
-end)
--- Download packages into the current folder.
-amber.setPackageRepository(shell.dir())
+local commands = {
+	install = function(args)
+		local package = args[1]
+		if package == nil then
+			return false
+		end
+		installation:installPackages(client, {{name = package}})
+	end,
+	update = function(args)
+		installation:updatePackages(client)
+	end
+}
 
--- TODO: install/remove/list/search commands.
-local args = {...}
-local package = args[1]
-
+-- TODO: Do we need this? We might be performing a local operation only.
 net.openModem()
-if package == nil then
-	amber.updatePackages()
-else
-	amber.requestPackages({{name = package}})
+local action = select(1, ...)
+local args = {select(2, ...)}
+if action == nil or commands[action] == nil or commands[action](args) == false then
+	print("Usage:")
+	print("amber install <package>")
+	print("   Installs or updates a package and all of its dependencies.")
+	print("amber update")
+	print("   Updates all installed packages and their dependencies.")
 end

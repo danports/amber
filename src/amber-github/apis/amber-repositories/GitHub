@@ -32,28 +32,22 @@ GitHub.bindPackageId = function(self, packageId)
 	end
 	return version, tree
 end
-GitHub.bindPackage = function(self, packageId)
+GitHub.bindPackage = function(self, packageId, encode)
 	local version, tree = self:bindPackageId(packageId)
 	local repoRoot = tree:getChild(self.path)
 	if repoRoot == nil then
-		print(string.format("ERROR: Unable to locate repository root %s", self.path))
-		return
+		return nil, string.format("Unable to locate repository root %s", self.path)
 	end
 	local packageTree = repoRoot:getChild(packageId.name)
 	if packageTree == nil then
-		return
+		return nil, string.format("Unable to find package %s in repository root %s", packageId.name, self.path)
 	end
 	
 	local contents = {}
-	packageTree:copyTo(contents, nil, amber.encode)
-	local manifest = {}
-	if contents.manifest then
-		manifest = textutils.unserialize(amber.decode(contents.manifest))
-	end
+	packageTree:copyTo(contents, nil, encode)
 	return {
 		id = {name = packageId.name, version = version},
-		contents = contents,
-		manifest = manifest
+		contents = contents
 	}
 end
 

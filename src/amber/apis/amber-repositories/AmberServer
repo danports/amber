@@ -5,10 +5,15 @@ AmberServer.__index = AmberServer
 AmberServer.new = function(data)
 	return setmetatable({server = data.server or "amber://"}, AmberServer)
 end
-AmberServer.bindPackage = function(self, packageId)
+AmberServer.bindPackage = function(self, packageId, encode)
+	-- TODO: We assume that the server's encoding is the same as ours.
 	net.sendMessage(self.server, "downloadPackage", packageId)
 	-- This assumes we're running a parallel message loop (or that the caller doesn't mind losing other events).
-	return net.pullMessage("packageDownload")
+	local package = net.pullMessage("packageDownload")
+	if package.errorMessage then
+		return nil, package.errorMessage
+	end
+	return package
 end
 
 return AmberServer
