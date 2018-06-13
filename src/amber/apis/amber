@@ -36,7 +36,7 @@ PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	if next(repoConfigs) == nil and defaultConfig ~= nil then
 		repoConfigs = defaultConfig
 	end
-	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories")
+	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories"))
 end
 local function createPackage(package)
 	if package.manifest then
