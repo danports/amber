@@ -36,7 +36,7 @@ local function loadFilesIn(path, encode)
 	for _, v in pairs(files) do
 		local filePath = fs.combine(path, v)
 		if fs.isDir(filePath) then
-			fileData[v] = loadFilesIn(filePath)
+			fileData[v] = loadFilesIn(filePath, encode)
 		else
 			local file = fs.open(filePath, "r")
 			fileData[v] = encode(file.readAll())
