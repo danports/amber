@@ -50,9 +50,11 @@ local function createPackage(package)
 		if contents then
 			package.manifest = textutils.unserialize(decode(contents))
 			package.contents[path] = nil
-			break
+			return package
 		end
 	end
+	
+	package.manifest = {}
 	return package
 end
 PackageClient.bindPackage = function(self, packageId)
@@ -208,7 +210,7 @@ PackageInstallation.installPackage = function(self, package)
 	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
 	local installed = self:getInstalledPackages()
 	local existing = installed.packages[package.id.name] or {}
-	-- TODO: There's always a blank manifest = {} entry
+	-- TODO: There's always a blank manifest = {} entry whenever the package has a manifest
 	local newMetadata = extractPackageMetadata(package, filesWritten)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
