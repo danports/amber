@@ -169,7 +169,7 @@ Tree.copyTo = function(self, dest, onProgress, encode)
 	if encode == nil then
 		encode = function(s) return s end
 	end
-	for _, item in ipairs(t.contents) do
+	for _, item in ipairs(self.contents) do
 		local gitpath = item:fullPath()
 		if getmetatable(item) == Tree then
 			dest[item.path] = {}
