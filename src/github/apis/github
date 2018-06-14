@@ -169,16 +169,19 @@ Tree.copyTo = function(self, dest, onProgress, encode)
 	if encode == nil then
 		encode = function(s) return s end
 	end
-	for item in self:iter() do
+	for _, item in ipairs(t.contents) do
 		local gitpath = item:fullPath()
-		if getmetatable(item) == Blob then
+		if getmetatable(item) == Tree then
+			dest[item.path] = {}
+			item:copyTo(dest[item.path], onProgress, encode)
+		elseif getmetatable(item) == Blob then
 			local data = http.get(
 				('https://raw.github.com/%s/%s/%s/%s'):format(
 					root.repo.user, root.repo.name, root.sha,
 					encodeURI(gitpath)
 				)
 			)
-			dest[item:fullPath(self)] = encode(data.readAll())
+			dest[item.path] = encode(data.readAll())
 		end
 		if onProgress then onProgress(item) end
 	end

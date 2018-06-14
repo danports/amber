@@ -143,7 +143,7 @@ PackageInstallation.getInstalledPackages = function(self)
 	end
 	return {version = 1, packages = {}}
 end
-PackageInstallation.writePackageFiles = function(self, path, data)
+PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
 	local rebootNeeded = false
 	if not fs.isDir(path) then
 		fs.makeDir(path)
@@ -151,12 +151,13 @@ PackageInstallation.writePackageFiles = function(self, path, data)
 	for file, contents in pairs(data) do
 		local destination = fs.combine(path, file)
 		if type(contents) == "table" then
-			rebootNeeded = self:writePackageFiles(destination, contents) or rebootNeeded
+			rebootNeeded = self:writePackageFiles(destination, contents, allFiles) or rebootNeeded
 		else
 			if file == "startup" then
 				rebootNeeded = true
 			end
 			local writeTo = destination
+			allFiles[writeTo] = {}
 			local editFile = false
 			-- TODO: Write to the template file AND copy it to the destination path if it does not exist.
 			-- That way we can detect changes to the file when a new version is installed.
@@ -183,14 +184,11 @@ PackageInstallation.writePackageFiles = function(self, path, data)
 	end
 	return rebootNeeded
 end
-local function extractPackageMetadata(package)
+local function extractPackageMetadata(package, allFiles)
 	local metadata = {}
 	for k, v in pairs(package) do
 		if k == "contents" then
-			metadata[k] = {}
-			for path in pairs(v) do
-				metadata[k][path] = {}
-			end
+			metadata[k] = allFiles
 		else
 			metadata[k] = v
 		end
@@ -206,10 +204,12 @@ PackageInstallation.installPackage = function(self, package)
 	
 	self.onProgress(string.format("Installing package %s-%s...", package.id.name, package.id.version))
 	-- TODO: Remove files installed by the previous version which are obsolete.
-	local result = self:writePackageFiles(self.path, package.contents)
+	local filesWritten = {}
+	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
 	local installed = self:getInstalledPackages()
 	local existing = installed.packages[package.id.name] or {}
-	local newMetadata = extractPackageMetadata(package)
+	-- TODO: There's always a blank manifest = {} entry
+	local newMetadata = extractPackageMetadata(package, filesWritten)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
 	local paths = self:getPackageListPaths()
