@@ -246,5 +246,6 @@ PackageInstallation.updatePackages = function(self, client)
 	for _, pkg in pairs(installed.packages) do
 		table.insert(toRequest, {name = pkg.id.name})
 	end
+	self.onProgress(string.format("Updating %i packages...", #toRequest))
 	self:installPackages(client, toRequest, false)
 end
