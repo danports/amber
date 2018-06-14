@@ -244,7 +244,7 @@ PackageInstallation.updatePackages = function(self, client)
 	local installed = self:getInstalledPackages()
 	local toRequest = {}
 	for _, pkg in pairs(installed.packages) do
-		table.insert(toRequest, {name = pkg.name})
+		table.insert(toRequest, {name = pkg.id.name})
 	end
 	self:installPackages(client, toRequest, false)
 end
