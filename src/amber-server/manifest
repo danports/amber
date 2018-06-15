@@ -5,7 +5,6 @@
 		{name = "net"},
 		{name = "dns"},
 		{name = "serializer"},
-		{name = "amber"},
-		{name = "github"}
+		{name = "amber"}
 	}
 }
