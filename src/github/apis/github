@@ -103,7 +103,7 @@ Tree.new = function(repo, sha, path, rootSha)
 	if data.tree then
 		local tree = setmetatable({
 			repo = repo,
-			rootSha = rootSha or data.sha
+			rootSha = rootSha or data.sha,
 			sha = data.sha,
 			path = path or '',
 			size = 0,
