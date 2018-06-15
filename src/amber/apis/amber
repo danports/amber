@@ -202,6 +202,14 @@ local function extractPackageMetadata(package, allFiles)
 	end
 	return metadata
 end
+PackageInstallation.writeInstalledPackages = function(self, installed)
+	local paths = self:getPackageListPaths()
+	serializer.writeToFile(paths[1], installed)
+	-- Clean up legacy package lists.
+	for i = 2, #paths do
+		fs.delete(paths[i])
+	end
+end
 PackageInstallation.installPackage = function(self, package)
 	if package.errorMessage ~= nil then
 		-- TODO: onError callback.
@@ -225,12 +233,7 @@ PackageInstallation.installPackage = function(self, package)
 	local newMetadata = extractPackageMetadata(package, filesWritten)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
-	local paths = self:getPackageListPaths()
-	serializer.writeToFile(paths[1], installed)
-	-- Clean up legacy package lists.
-	for i = 2, #paths do
-		fs.delete(paths[i])
-	end
+	self:writeInstalledPackages(installed)
 	
 	return result
 end
@@ -260,4 +263,34 @@ PackageInstallation.updatePackages = function(self, client)
 	end
 	self.onProgress(string.format("Updating %i packages...", #toRequest))
 	self:installPackages(client, toRequest, false)
+end
+PackageInstallation.removePackage = function(self, package)
+	self.onProgress(string.format("Removing package %s...", formatPackageId(package)))
+	local installed = self:getInstalledPackages()
+	local existing = installed.packages[package.name]
+	if existing == nil then
+		local message = string.format("ERROR: Package %s not installed", formatPackageId(package))
+		self.onProgress(message)
+		return false, message
+	end
+
+	for existingFile in pairs(existing.contents) do
+		-- TODO: What about template files?
+		-- TODO: What about empty directories?
+		-- TODO: What if this package is needed by others?
+		-- TODO: What about purging dependencies which are no longer needed?
+		self.onProgress(string.format("  Removing: %s", existingFile))
+		fs.delete(existingFile)
+	end
+	
+	installed[package.name] = nil
+	self:writeInstalledPackages(installed)
+
+	return true
+end
+PackageInstallation.removePackages = function(self, packages)
+	self.onProgress(string.format("Removing %i packages...", #packages))
+	for _, package in ipairs(packages) do
+		self:removePackage(package)
+	end
 end

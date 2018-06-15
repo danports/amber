@@ -23,16 +23,29 @@ local installation = amber.PackageInstallation.new(
 	function(progress) print(progress) end
 )
 
+local function createPackageIds(names)
+	local ids = {}
+	for _, name in ipairs(names) do
+		table.insert(ids, {name = name})
+	end
+	return ids
+end
+
 local commands = {
 	install = function(args)
-		local package = args[1]
-		if package == nil then
+		if next(args) == nil then
 			return false
 		end
-		installation:installPackages(client, {{name = package}})
+		installation:installPackages(client, createPackageIds(args))
 	end,
 	update = function(args)
 		installation:updatePackages(client)
+	end,
+	remove = function(args)
+		if next(args) == nil then
+			return false
+		end
+		installation:removePackages(client, createPackageIds(args))
 	end
 }
 
@@ -42,8 +55,10 @@ local action = select(1, ...)
 local args = {select(2, ...)}
 if action == nil or commands[action] == nil or commands[action](args) == false then
 	print("Usage:")
-	print("amber install <package>")
-	print("   Installs or updates a package and all of its dependencies.")
+	print("amber install <package1> <package2>...")
+	print("   Installs or updates specified packages.")
 	print("amber update")
-	print("   Updates all installed packages and their dependencies.")
+	print("   Updates all installed packages.")
+	print("amber remove <package1> <package2>...")
+	print("   Removes specified packages.")
 end
