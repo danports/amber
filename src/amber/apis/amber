@@ -283,7 +283,7 @@ PackageInstallation.removePackage = function(self, package)
 		fs.delete(existingFile)
 	end
 	
-	installed[package.name] = nil
+	installed.packages[package.name] = nil
 	self:writeInstalledPackages(installed)
 
 	return true
