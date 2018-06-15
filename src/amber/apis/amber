@@ -44,7 +44,6 @@ local function createPackage(package)
 	end
 	
 	-- TODO: The latter is a legacy path for backwards compatibility.
-	-- TODO: Convert all packages to use the new .manifest path
 	local paths = {".manifest", "manifest"}
 	for _, path in ipairs(paths) do
 		local contents = package.contents[path]
@@ -174,18 +173,18 @@ PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
 				if not fs.exists(baseName) then
 					writeTo = baseName
 					editFile = true
-					self.onProgress(string.format("%s => %s", destination, writeTo))
+					self.onProgress(string.format("  %s => %s", destination, writeTo))
 				else
-					self.onProgress(writeTo)
+					self.onProgress(string.format("  %s", writeTo))
 				end
 			else
-				self.onProgress(writeTo)
+				self.onProgress(string.format("  %s", writeTo))
 			end
 			local file = fs.open(writeTo, "w")
 			file.write(decode(contents))
 			file.close()
 			if editFile and self.onEdit ~= nil then
-				self.onProgress(string.format("Editing: %s", writeTo))
+				self.onProgress(string.format("  Editing: %s", writeTo))
 				self.onEdit(writeTo)
 			end
 		end
@@ -210,21 +209,29 @@ PackageInstallation.installPackage = function(self, package)
 		return
 	end
 	
-	self.onProgress(string.format("Installing package %s-%s...", package.id.name, package.id.version))
-	-- TODO: Remove files installed by the previous version which are obsolete.
+	self.onProgress(string.format("Installing package %s...", formatPackageId(package.id))
+	local installed = self:getInstalledPackages()
+	local existing = installed.packages[package.id.name] or {contents = {}}
+	
 	local filesWritten = {}
 	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
-	local installed = self:getInstalledPackages()
-	local existing = installed.packages[package.id.name] or {}
+	for existingFile in pairs(existing.contents) do
+		if filesWritten[existingFile] == nil then
+			self.onProgress(string.format("  Removing obsolete file: %s", existingFile))
+			fs.delete(existingFile)
+		end
+	end
+	
 	local newMetadata = extractPackageMetadata(package, filesWritten)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
 	local paths = self:getPackageListPaths()
 	serializer.writeToFile(paths[1], installed)
-	-- Clean up legacy files.
+	-- Clean up legacy package lists.
 	for i = 2, #paths do
 		fs.delete(paths[i])
 	end
+	
 	return result
 end
 PackageInstallation.installBundle = function(self, bundle)
