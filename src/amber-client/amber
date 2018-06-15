@@ -45,7 +45,7 @@ local commands = {
 		if next(args) == nil then
 			return false
 		end
-		installation:removePackages(client, createPackageIds(args))
+		installation:removePackages(createPackageIds(args))
 	end
 }
 
