@@ -209,7 +209,7 @@ PackageInstallation.installPackage = function(self, package)
 		return
 	end
 	
-	self.onProgress(string.format("Installing package %s...", formatPackageId(package.id))
+	self.onProgress(string.format("Installing package %s...", formatPackageId(package.id)))
 	local installed = self:getInstalledPackages()
 	local existing = installed.packages[package.id.name] or {contents = {}}
 	
