@@ -17,6 +17,7 @@ local function getAPI(path, auth)
 end
 
 local function encodeURI(s)
+	-- TODO: Use textutils.urlEncode.
 	return s:gsub(' ', '%20')
 end
 
@@ -64,6 +65,18 @@ Auth.delete = function(user)
 	writeAuth(authTable)
 end
 
+-- A class for a commit
+local Commit = {}
+Commit.__index = Commit
+Commit.new = function(repo, sha)
+	local url = ('repos/%s/%s/git/commits/%s'):format(repo.user, repo.name, sha)
+	local status, data = getAPI(url, repo.auth)
+	if not status then
+		error('Could not get github API from ' ..url)
+	end
+	return setmetatable({data = data}, Commit)
+end
+
 -- A class for a blob (aka a file)
 local Blob = {}
 Blob.__index = Blob
@@ -81,7 +94,7 @@ end
 -- A class for a tree (aka a folder)
 local Tree = {}
 Tree.__index = Tree
-Tree.new = function(repo, sha, path)
+Tree.new = function(repo, sha, path, rootSha)
 	local url = ('repos/%s/%s/git/trees/%s'):format(repo.user, repo.name, sha)
 	local status, data = getAPI(url, repo.auth)
 	if not status then
@@ -89,9 +102,12 @@ Tree.new = function(repo, sha, path)
 	end
 	if data.tree then
 		local tree = setmetatable({
-			repo=repo, sha=data.sha,
-			path=path or '', size=0,
-			contents={}
+			repo = repo,
+			rootSha = rootSha or data.sha
+			sha = data.sha,
+			path = path or '',
+			size = 0,
+			contents = {}
 		}, Tree)
 		for _, childdata in ipairs(data.tree) do
 			childdata.fullPath = fs.combine(tree:fullPath(), childdata.path)
@@ -100,7 +116,7 @@ Tree.new = function(repo, sha, path)
 				child = Blob.new(repo, childdata.sha, childdata.path)
 				child.size = childdata.size
 			elseif childdata.type == 'tree' then
-				child = Tree.new(repo, childdata.sha, childdata.path)
+				child = Tree.new(repo, childdata.sha, childdata.path, tree.rootSha)
 			else
 				error("uh oh", JSON.encode(childdata))
 				child = childdata
@@ -128,6 +144,9 @@ Tree.getChild = function(self, path)
 			return item
 		end
 	end
+end
+Tree.getCommit = function(self)
+	return Commit.new(self.repo, self.rootSha)
 end
 Tree.iter = function(self)
 	return coroutine.wrap(function()
@@ -162,13 +181,6 @@ Tree.cloneTo = function(self, dest, onProgress)
 	end
 end
 Tree.copyTo = function(self, dest, onProgress, encode)
-	local root = self.parent
-	while root.parent do
-		root = root.parent
-	end
-	if encode == nil then
-		encode = function(s) return s end
-	end
 	for _, item in ipairs(self.contents) do
 		local gitpath = item:fullPath()
 		if getmetatable(item) == Tree then
@@ -177,11 +189,15 @@ Tree.copyTo = function(self, dest, onProgress, encode)
 		elseif getmetatable(item) == Blob then
 			local data = http.get(
 				('https://raw.github.com/%s/%s/%s/%s'):format(
-					root.repo.user, root.repo.name, root.sha,
+					self.repo.user, self.repo.name, self.rootSha,
 					encodeURI(gitpath)
 				)
 			)
-			dest[item.path] = encode(data.readAll())
+			local contents = data.readAll()
+			if encode then
+				contents = encode(contents)
+			end
+			dest[item.path] = contents
 		end
 		if onProgress then onProgress(item) end
 	end
@@ -236,6 +252,7 @@ Repository.__tostring = function(self) return ("Repo@%s/%s"):format(self.user, s
 -- Export members
 local github = {}
 github.Repository = Repository
+github.Commit = Commit
 github.Blob = Blob
 github.Tree = Tree
 github.Auth = Auth

@@ -19,8 +19,8 @@ GitHub.bindPackageId = function(self, packageId)
 	local tree
 	if version == nil then
 		if self.defaultVersion then
-			version = self.defaultVersion
-			tree = self.repo:tree(version)
+			tree = self.repo:tree(self.defaultVersion)
+			version = string.format("%s-%s-%s", tree:getCommit().data.committer.date, self.defaultVersion, tree.sha:sub(1, 7))
 		else
 			local release = self.repo:latestRelease()
 			version = release.tag

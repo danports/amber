@@ -44,6 +44,7 @@ local function createPackage(package)
 	end
 	
 	-- TODO: The latter is a legacy path for backwards compatibility.
+	-- TODO: Convert all packages to use the new .manifest path
 	local paths = {".manifest", "manifest"}
 	for _, path in ipairs(paths) do
 		local contents = package.contents[path]

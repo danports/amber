@@ -9,6 +9,7 @@ os.loadAPI("apis/amber")
 function sendPackages(args, sender)
 	local packages = args[2]
 	log.info(string.format("Sending %i packages to %i", #packages, sender))
+	-- TODO: Use the old encoding only here.
 	net.sendMessage(sender, "bundleDownload", client:getBundle(packages, true))
 end
 
