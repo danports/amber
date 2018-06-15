@@ -139,7 +139,12 @@ PackageInstallation.getInstalledPackages = function(self)
 		local contents = serializer.readFromFile(path)
 		if next(contents) ~= nil then
 			if contents.version == nil then
-				contents = {version = 1, packages = contents}
+				-- Upgrade v0 package lists.
+				local newContents = {version = 1, packages = {}}
+				for k, v in pairs(contents) do
+					newContents.packages[k] = {id = v}
+				end
+				return newContents
 			end
 			return contents
 		end
@@ -211,7 +216,6 @@ PackageInstallation.installPackage = function(self, package)
 	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
 	local installed = self:getInstalledPackages()
 	local existing = installed.packages[package.id.name] or {}
-	-- TODO: There's always a blank manifest = {} entry whenever the package has a manifest
 	local newMetadata = extractPackageMetadata(package, filesWritten)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
