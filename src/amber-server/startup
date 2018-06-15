@@ -16,13 +16,14 @@ end
 -- Package requests
 function downloadPackage(args, sender)
 	local packageId = args[2]
-	log.info(string.format("Sending package %s to %i", packageId.name, sender))
+	log.info(string.format("Received request for %s from %i...", amber.formatPackageId(packageId), sender))
 	local package = client:bindPackage(packageId)
 	if package == nil then
 		local errorMessage = string.format("Unable to bind package %s", packageId.name)
 		log.err(errorMessage)
 		net.sendMessage(sender, "packageDownload", {errorMessage = errorMessage})
 	else
+		log.info(string.format("Sending %s to %i", amber.formatPackageId(package.id), sender))
 		net.sendMessage(sender, "packageDownload", package)
 	end
 end
