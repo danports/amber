@@ -118,7 +118,7 @@ PackageClient.getAvailablePackages = function(self)
 	end
 	return packages
 end
-PackageClient.buildNuggetFor = function(packageId, entryPoint)
+PackageClient.buildNuggetFor = function(self, packageId, entryPoint)
 	local package = self:bindPackage(packageId)
 	if package == nil then
 		return nil, "Unable to locate package"
