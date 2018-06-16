@@ -154,12 +154,34 @@ PackageClient.buildNuggetFor = function(self, packageId)
 	local bundle = {package}
 	self:bundlePackages(bundle, package.manifest.dependencies)
 	local filesystem = buildFilesystem(bundle)
-	filesystem[entryPoint] = nil
 
-	-- TODO: Write code to intercept os.loadAPI and dofile, maybe even fs.open
-	return Nugget.new(entryPoint, "_nuggetFiles = " .. textutils.serialize(filesystem) .. [[
+	-- TODO: Try to intercept fs.open instead of loadfile, if possible.
+	return Nugget.new(entryPoint, "local _nuggetFiles = " .. textutils.serialize(filesystem) .. [[
+local _baseFolder = fs.getDir(shell.getRunningProgram())
+local originalLoadfile = loadfile
+_G.loadfile = function(file, env)
+	if file:sub(1, _baseFolder:len()) == _baseFolder then
+		-- TODO: Check for / separating
+		local localFile = file:sub(_baseFolder:len() + 2)
+		local ours = _nuggetFiles[localFile]
+		if ours then
+			return load( ours, file, "t", env )
+		end
+	end
+	return originalLoadfile(file, env)
+end
 
-]] .. program)
+local args = {...}
+local ok, err = pcall(function()
+	local program = loadfile(]] .. textutils.serialize(entryPoint) .. [[)
+	program(table.unpack(args))
+end)
+if not ok then
+	print(err)
+end
+
+_G.loadfile = originalLoadfile
+	]])
 end
 
 -- Nuggets
