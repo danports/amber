@@ -49,7 +49,8 @@ end
 function broadcastUpdate(toDeploy)
 	log.info(string.format("Broadcasting availability of package update: %s", toDeploy))
 	-- TODO: rednet.broadcast - is that the best way to do this?
-	rednet.broadcast(net.createMessage("bundleUpdateAvailable", client:getBundle({{name = toDeploy}}))
+	local bundle = client:getBundle({{name = toDeploy}})
+	rednet.broadcast(net.createMessage("bundleUpdateAvailable", bundle))
 end
 
 -- Startup
