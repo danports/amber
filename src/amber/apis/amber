@@ -145,10 +145,10 @@ end
 -- Nuggets
 Nugget = {}
 Nugget.__index = Nugget
-Nugget.new = function(entryPoint, nugget)
+Nugget.new = function(entryPoint, contents)
 	return setmetatable({
 		entryPoint = entryPoint,
-		nugget = nugget
+		contents = contents
 	}, Nugget)
 end
 Nugget.writeTo = function(self, path)
