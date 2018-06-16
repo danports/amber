@@ -92,7 +92,7 @@ PackageClient.bundlePackage = function(self, msg, packageId, userInstalled)
 	end
 	package.userInstalled = userInstalled
 	table.insert(msg, package)
-	self:bundlePackages(msg, package.manifest.dependencies, nil)
+	self:bundlePackages(msg, package.manifest.dependencies)
 end
 PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled)
 	if toPackage == nil then
@@ -117,6 +117,42 @@ PackageClient.getAvailablePackages = function(self)
 		end
 	end
 	return packages
+end
+PackageClient.buildNuggetFor = function(packageId, entryPoint)
+	local package = self:bindPackage(packageId)
+	if package == nil then
+		return nil, "Unable to locate package"
+	end
+	
+	local program = package.contents[entryPoint]
+	if program == nil then
+		return nil, "Unable to locate entry point"
+	end
+	
+	-- TODO: Grab package dependencies
+	-- TODO: Write code to intercept os.loadAPI and dofile, maybe even fs.open
+	package.contents[entryPoint] = nil
+	return Nugget.new("_nuggetFiles = " .. textutils.serialize(package.contents) .. [[
+
+]] .. program)
+end
+
+-- Nuggets
+Nugget = {}
+Nugget.__index = Nugget
+Nugget.new = function(nugget)
+	return setmetatable({
+		nugget = nugget
+	}, Nugget)
+end
+Nugget.writeTo = function(self, path)
+	local file = fs.open(path, "w")
+	file.write(self.contents)
+	file.close()
+end
+Nugget.run = function(self, ...)
+	local f = loadstring(self.contents)
+	return f(...)
 end
 
 -- Local package installation
