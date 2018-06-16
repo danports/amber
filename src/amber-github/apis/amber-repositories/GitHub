@@ -18,7 +18,7 @@ GitHub.getDefaultTree = function(self)
 	local version, tree
 	if self.defaultVersion then
 		tree = self.repo:tree(self.defaultVersion)
-		version = string.format("%s-%s-%s", tree:getCommit().data.committer.date, self.defaultVersion, tree.sha:sub(1, 7))
+		version = string.format("%s-%s-%s", tree:getCommit().data.committer.date, self.defaultVersion, tree.sha:sub(1, 8))
 	else
 		local release = self.repo:latestRelease()
 		version = release.tag
@@ -61,7 +61,7 @@ GitHub.getAvailablePackages = function(self)
 	
 	local packages = {}
 	for _, file in ipairs(repoRoot.contents) do
-		if getmetatable(item) == github.Tree then
+		if getmetatable(file) == github.Tree then
 			-- TODO: Read the manifest.
 			packages[file.path] = {
 				id = {name = file.path, version = version}
