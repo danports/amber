@@ -155,6 +155,7 @@ PackageClient.buildNuggetFor = function(self, packageId)
 	self:bundlePackages(bundle, package.manifest.dependencies)
 	local filesystem = buildFilesystem(bundle)
 
+	-- TODO: Implement a full string reader handle.
 	return Nugget.new(entryPoint, "-- " .. formatPackageId(package.id) .. [[
 
 local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
@@ -162,19 +163,20 @@ local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
 local _baseFolder = fs.getDir(shell.getRunningProgram())
 local originalOpen = fs.open
 fs.open = function(file, mode)
-	if file:sub(1, _baseFolder:len()) == _baseFolder then
-		-- TODO: Check for / separating
-		local localFile = file:sub(_baseFolder:len() + 2)
-		local ours = _nuggetFiles[localFile]
-		if ours then
-			-- TODO: Implement a full string reader handle.
-			return {
-				readAll = function() return ours end,
-				close = function() end
-			}
-		end
+	local localFile
+	if _baseFolder == "" then
+		localFile = file
+	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder + "/" then
+		localFile = file:sub(_baseFolder:len() + 2)
 	end
-	return originalOpen(file, mode)
+	local ours = _nuggetFiles[localFile]
+	if not ours then
+		return originalOpen(file, mode)
+	end
+	return {
+		readAll = function() return ours end,
+		close = function() end
+	}
 end
 
 local args = {...}
