@@ -69,7 +69,7 @@ local function createPackage(package, encoder)
 end
 PackageClient.bindPackage = function(self, packageId, encoder)
 	for _, repo in pairs(self.repositories) do
-		local result = repo:bindPackage(packageId, encoder or function(s) return s end)
+		local result = repo:bindPackage(packageId)
 		if result ~= nil then
 			return createPackage(result, encoder)
 		end
