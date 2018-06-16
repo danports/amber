@@ -38,8 +38,8 @@ local commands = {
 		end
 		installation:installPackages(client, createPackageIds(args))
 	end,
-	update = function()
-		installation:updatePackages(client)
+	update = function(args)
+		installation:updatePackages(client, createPackageIds(args))
 	end,
 	remove = function(args)
 		if next(args) == nil then
@@ -65,8 +65,8 @@ if action == nil or commands[action] == nil or commands[action](args) == false t
 	print("Usage:")
 	print("amber install <package1> <package2>...")
 	print("  Installs or updates specified packages.")
-	print("amber update")
-	print("  Updates all installed packages.")
+	print("amber update [<package1> <package2>...]")
+	print("  Updates specified or all installed packages.")
 	print("amber remove <package1> <package2>...")
 	print("  Removes specified packages.")
 	print("amber search [<pattern>]")

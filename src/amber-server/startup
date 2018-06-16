@@ -53,8 +53,8 @@ function broadcastUpdate(toDeploy)
 		updating = toDeploy
 	end
 	log.info(string.format("Broadcasting availability of package update: %s", updating))
-	-- TODO: rednet.broadcast, really??
-	rednet.broadcast({"packageUpdateAvailable", toDeploy})
+	-- TODO: rednet.broadcast - is that the best way to do this?
+	rednet.broadcast(net.createMessage("packageUpdateAvailable", toDeploy))
 end
 
 -- Startup

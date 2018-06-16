@@ -1,17 +1,27 @@
 os.loadAPI("apis/events")
 os.loadAPI("apis/amber")
 
+local function createClient()
+	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
+	local installation = amber.PackageInstallation.new(nil, editHandler, function(progress) print(progress) end)
+	return client, installation
+end
+
 function updatePackages(interactive)
 	local editHandler
 	if interactive then
 		editHandler = function(file) shell.run("edit", "/" .. file) end
 	end
-	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
-	local installation = amber.PackageInstallation.new(nil, editHandler, function(progress) print(progress) end)
+	local client, installation = createClient()
 	installation:updatePackages(client)
 end
 
--- TODO: This doesn't really belong here.
+local function handlePackageUpdate(packageName)
+	local client, installation = createClient()
+	installation:updatePackages(client, {{name = packageName}})
+end
+
+-- TODO: This doesn't really belong here, but it's handy for now. Move to autostartup perhaps.
 local function printSystemInfo()
 	local label = os.getComputerLabel()
 	local id = os.getComputerID()
@@ -22,8 +32,7 @@ local function printSystemInfo()
 end
 
 function initialize()
-	-- TODO: Handle package available broadcasts.
-	-- net.registerMessageHandler("packageUpdateAvailable", updatePackages)
+	net.registerMessageHandler("packageUpdateAvailable", handlePackageUpdate)
 
 	events.registerHandler("char", function(evt, pressed)
 		if pressed == "u" then

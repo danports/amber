@@ -269,11 +269,25 @@ PackageInstallation.installPackages = function(self, client, packages, userInsta
 	local bundle = client:getBundle(packages, userInstalled)
 	self:installBundle(bundle)
 end
-PackageInstallation.updatePackages = function(self, client)
+local function packageIdListContains(packages, packageId)
+	for _, id in pairs(packages) do
+		-- We don't check the version since that's not relevant for upgrades.
+		if id.name == packageId.name then
+			return true
+		end
+	end
+	return false
+end
+PackageInstallation.updatePackages = function(self, client, packages)
 	local installed = self:getInstalledPackages()
 	local toRequest = {}
 	for _, pkg in pairs(installed.packages) do
-		table.insert(toRequest, {name = pkg.id.name})
+		if packages == nil or packageIdListContains(packages, pkg.id) then
+			table.insert(toRequest, {name = pkg.id.name})
+		end
+	end
+	if next(toRequest) == nil then
+		return
 	end
 	self.onProgress(string.format("Updating %i packages...", #toRequest))
 	self:installPackages(client, toRequest, false)
