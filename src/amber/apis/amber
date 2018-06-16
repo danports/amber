@@ -157,6 +157,7 @@ PackageClient.buildNuggetFor = function(self, packageId)
 
 	-- TODO: Try to intercept fs.open instead of loadfile, if possible.
 	return Nugget.new(entryPoint, "local _nuggetFiles = " .. textutils.serialize(filesystem) .. [[
+
 local _baseFolder = fs.getDir(shell.getRunningProgram())
 local originalLoadfile = loadfile
 _G.loadfile = function(file, env)
@@ -173,15 +174,16 @@ end
 
 local args = {...}
 local ok, err = pcall(function()
-	local program = loadfile(]] .. textutils.serialize(entryPoint) .. [[)
+	local program = loadfile(fs.combine(_baseFolder, ]] .. textutils.serialize(entryPoint) .. [[))
+	-- TODO: How can we do this in a more general way?
+	getfenv(program).shell = shell
 	program(table.unpack(args))
 end)
 if not ok then
 	print(err)
 end
 
-_G.loadfile = originalLoadfile
-	]])
+_G.loadfile = originalLoadfile]])
 end
 
 -- Nuggets
