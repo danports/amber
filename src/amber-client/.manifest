@@ -1,4 +1,5 @@
 {
+	entryPoint = "amber",
 	dependencies = {
 		{name = "events"},
 		{name = "net"},

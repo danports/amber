@@ -118,10 +118,15 @@ PackageClient.getAvailablePackages = function(self)
 	end
 	return packages
 end
-PackageClient.buildNuggetFor = function(self, packageId, entryPoint)
+PackageClient.buildNuggetFor = function(self, packageId)
 	local package = self:bindPackage(packageId)
 	if package == nil then
 		return nil, "Unable to locate package"
+	end
+	
+	local entryPoint = package.manifest.entryPoint
+	if entryPoint == nil then
+		return nil, "Package does not specify entry point"
 	end
 	
 	local program = package.contents[entryPoint]
@@ -140,13 +145,14 @@ end
 -- Nuggets
 Nugget = {}
 Nugget.__index = Nugget
-Nugget.new = function(nugget)
+Nugget.new = function(entryPoint, nugget)
 	return setmetatable({
+		entryPoint = entryPoint,
 		nugget = nugget
 	}, Nugget)
 end
 Nugget.writeTo = function(self, path)
-	local file = fs.open(path, "w")
+	local file = fs.open(fs.combine(path, self.entryPoint), "w")
 	file.write(self.contents)
 	file.close()
 end
