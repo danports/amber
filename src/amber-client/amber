@@ -64,11 +64,11 @@ local args = {select(2, ...)}
 if action == nil or commands[action] == nil or commands[action](args) == false then
 	print("Usage:")
 	print("amber install <package1> <package2>...")
-	print("   Installs or updates specified packages.")
+	print("  Installs or updates specified packages.")
 	print("amber update")
-	print("   Updates all installed packages.")
+	print("  Updates all installed packages.")
 	print("amber remove <package1> <package2>...")
-	print("   Removes specified packages.")
+	print("  Removes specified packages.")
 	print("amber search [<pattern>]")
-	print("   Lists all available packages, or just those matching <pattern>.")
+	print("  Lists all available packages, or just those matching <pattern>.")
 end

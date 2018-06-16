@@ -1,0 +1,36 @@
+os.loadAPI("apis/events")
+os.loadAPI("apis/amber")
+
+function updatePackages(interactive)
+	local editHandler
+	if interactive then
+		editHandler = function(file) shell.run("edit", "/" .. file) end
+	end
+	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
+	local installation = amber.PackageInstallation.new(nil, editHandler, function(progress) print(progress) end)
+	installation:updatePackages(client)
+end
+
+-- TODO: This doesn't really belong here.
+local function printSystemInfo()
+	local label = os.getComputerLabel()
+	local id = os.getComputerID()
+	if label then
+		print(string.format("Computer label: %s", label))
+	end
+	print(string.format("Computer ID: %i", id))
+end
+
+function initialize()
+	-- TODO: Handle package available broadcasts.
+	-- net.registerMessageHandler("packageUpdateAvailable", updatePackages)
+
+	events.registerHandler("char", function(evt, pressed)
+		if pressed == "u" then
+			updatePackages(true)
+		end
+		if pressed == "i" then
+			printSystemInfo()
+		end
+	end)
+end
