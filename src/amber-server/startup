@@ -5,14 +5,6 @@ os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
 os.loadAPI("apis/amber")
 
--- Bundle requests (TODO: This is legacy code.)
-function sendPackages(args, sender)
-	local packages = args[2]
-	log.info(string.format("Sending %i packages to %i", #packages, sender))
-	-- TODO: Use the old encoding only here.
-	net.sendMessage(sender, "bundleDownload", client:getBundle(packages, true))
-end
-
 -- Package requests
 function downloadPackage(args, sender)
 	local packageId = args[2]
@@ -49,7 +41,7 @@ end
 function broadcastUpdate(toDeploy)
 	log.info(string.format("Broadcasting availability of package update: %s", toDeploy))
 	-- TODO: rednet.broadcast - is that the best way to do this?
-	local bundle = client:getBundle({{name = toDeploy}})
+	local bundle = client:getBundle({{name = toDeploy}}, amber.encode) -- TODO: Remove the old encoder
 	rednet.broadcast(net.createMessage("bundleUpdateAvailable", 
 		{
 			packageUpdated = {name = toDeploy},
@@ -59,14 +51,12 @@ end
 
 -- Startup
 function onStartup()
-	net.registerRawMessageHandler("sendPackages", sendPackages)
 	net.registerRawMessageHandler("downloadPackage", downloadPackage)
 	net.registerRawMessageHandler("sendAvailablePackages", sendAvailablePackages)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 
 	dofile("config")
 	log.info(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
-	dns.register("updates") -- TODO: Drop legacy protocol name.
 	dns.register("amber")
 	client = amber.PackageClient.fromConfigurationPath()
 end

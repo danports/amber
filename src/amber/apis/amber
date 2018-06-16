@@ -48,7 +48,7 @@ local function createPackage(package)
 	for _, path in ipairs(paths) do
 		local contents = package.contents[path]
 		if contents then
-			package.manifest = textutils.unserialize(decode(contents))
+			package.manifest = textutils.unserialize(contents)
 			package.contents[path] = nil
 			return package
 		end
@@ -57,9 +57,9 @@ local function createPackage(package)
 	package.manifest = {}
 	return package
 end
-PackageClient.bindPackage = function(self, packageId)
+PackageClient.bindPackage = function(self, packageId, encoder)
 	for _, repo in pairs(self.repositories) do
-		local result = repo:bindPackage(packageId, encode)
+		local result = repo:bindPackage(packageId, encoder or function(s) return s end)
 		if result ~= nil then
 			return createPackage(result)
 		end
@@ -82,29 +82,29 @@ local function bundleContains(msg, packageId)
 	end
 	return false
 end
-PackageClient.bundlePackage = function(self, msg, packageId, userInstalled)
+PackageClient.bundlePackage = function(self, msg, packageId, userInstalled, encoder)
 	if bundleContains(msg, packageId) then
 		return
 	end
-	local package = self:bindPackage(packageId)
+	local package = self:bindPackage(packageId, encoder)
 	if package == nil then
 		return {errorMessage = string.format("Unable to locate package %s", formatPackageId(packageId))}
 	end
 	package.userInstalled = userInstalled
 	table.insert(msg, package)
-	self:bundlePackages(msg, package.manifest.dependencies)
+	self:bundlePackages(msg, package.manifest.dependencies, nil, encoder)
 end
-PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled)
+PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled, encoder)
 	if toPackage == nil then
 		return
 	end
 	for _, packageId in pairs(toPackage) do
-		self:bundlePackage(msg, packageId, userInstalled)
+		self:bundlePackage(msg, packageId, userInstalled, encoder)
 	end
 end
-PackageClient.getBundle = function(self, toPackage, userInstalled)
+PackageClient.getBundle = function(self, toPackage, userInstalled, encoder)
 	local bundle = {}
-	self:bundlePackages(bundle, toPackage, userInstalled)
+	self:bundlePackages(bundle, toPackage, userInstalled, encoder)
 	return bundle
 end
 PackageClient.getAvailablePackages = function(self)
@@ -123,10 +123,6 @@ end
 -- TODO: Eliminate these - they shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
 function encode(data)
 	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
-end
-
-function decode(data)
-	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@1", "\n"), "@2", "\""), "@3", "\\"), "@0", "@")
 end
 
 -- Local package installation
@@ -192,7 +188,7 @@ PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
 				self.onProgress(string.format("  %s", writeTo))
 			end
 			local file = fs.open(writeTo, "w")
-			file.write(decode(contents))
+			file.write(contents)
 			file.close()
 			if editFile and self.onEdit ~= nil then
 				self.onProgress(string.format("  Editing: %s", writeTo))
