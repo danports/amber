@@ -64,7 +64,7 @@ local commands = {
 			return false
 		end
 		local op = args[1]
-		local opAction = {
+		local opActions = {
 			save = function(packageId, nugget) 
 				nugget:writeTo(fs.combine(shell.dir(), packageId))
 				print(string.format("%s nugget saved.", packageId))
@@ -72,7 +72,8 @@ local commands = {
 			run = function(packageId, nugget, args)
 				nugget:run(table.unpack(args))
 			end
-		}[op]
+		}
+		local opAction = opActions[op]
 		if opAction == nil then
 			return false
 		end
