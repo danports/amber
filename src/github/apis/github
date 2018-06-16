@@ -180,12 +180,12 @@ Tree.cloneTo = function(self, dest, onProgress)
 		if onProgress then onProgress(item) end
 	end
 end
-Tree.copyTo = function(self, dest, onProgress, encode)
+Tree.copyTo = function(self, dest, onProgress)
 	for _, item in ipairs(self.contents) do
 		local gitpath = item:fullPath()
 		if getmetatable(item) == Tree then
 			dest[item.path] = {}
-			item:copyTo(dest[item.path], onProgress, encode)
+			item:copyTo(dest[item.path], onProgress)
 		elseif getmetatable(item) == Blob then
 			local data = http.get(
 				('https://raw.github.com/%s/%s/%s/%s'):format(
@@ -193,11 +193,7 @@ Tree.copyTo = function(self, dest, onProgress, encode)
 					encodeURI(gitpath)
 				)
 			)
-			local contents = data.readAll()
-			if encode then
-				contents = encode(contents)
-			end
-			dest[item.path] = contents
+			dest[item.path] = data.readAll()
 		end
 		if onProgress then onProgress(item) end
 	end

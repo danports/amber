@@ -38,30 +38,40 @@ PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	end
 	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories"))
 end
-local function createPackage(package)
-	if package.manifest then
-		return package
+local function applyEncoder(contents, encoder)
+	for k, v in pairs(contents) do
+		if type(v) == "table" then
+			applyEncoder(v, encoder)
+		else
+			contents[k] = encoder(v)
+		end
 	end
-	
-	-- TODO: The latter is a legacy path for backwards compatibility.
-	local paths = {".manifest", "manifest"}
-	for _, path in ipairs(paths) do
-		local contents = package.contents[path]
-		if contents then
-			package.manifest = textutils.unserialize(contents)
-			package.contents[path] = nil
-			return package
+end
+local function createPackage(package, encoder)
+	if not package.manifest then
+		-- TODO: The latter is a legacy path for backwards compatibility.
+		local paths = {".manifest", "manifest"}
+		for _, path in ipairs(paths) do
+			local contents = package.contents[path]
+			if contents then
+				package.manifest = textutils.unserialize(contents)
+				package.contents[path] = nil
+				break
+			end
+		end
+		if not package.manifest then
+			package.manifest = {}
 		end
 	end
 	
-	package.manifest = {}
+	applyEncoder(package.contents, encoder)
 	return package
 end
 PackageClient.bindPackage = function(self, packageId, encoder)
 	for _, repo in pairs(self.repositories) do
 		local result = repo:bindPackage(packageId, encoder or function(s) return s end)
 		if result ~= nil then
-			return createPackage(result)
+			return createPackage(result, encoder)
 		end
 	end
 end

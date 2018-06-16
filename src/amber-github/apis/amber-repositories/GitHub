@@ -34,7 +34,7 @@ GitHub.bindPackageId = function(self, packageId)
 	local release = self.repo:releaseByTag(version)
 	return version, release:tree()
 end
-GitHub.bindPackage = function(self, packageId, encode)
+GitHub.bindPackage = function(self, packageId)
 	local version, tree = self:bindPackageId(packageId)
 	local repoRoot = tree:getChild(self.path)
 	if repoRoot == nil then
@@ -46,7 +46,7 @@ GitHub.bindPackage = function(self, packageId, encode)
 	end
 	
 	local contents = {}
-	packageTree:copyTo(contents, nil, encode)
+	packageTree:copyTo(contents, nil)
 	return {
 		id = {name = packageId.name, version = version},
 		contents = contents

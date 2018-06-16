@@ -30,27 +30,27 @@ LocalDirectory.getLatestVersion = function(self, packageId)
 	end
 	return latest
 end
-local function loadFilesIn(path, encode)
+local function loadFilesIn(path)
 	local files = fs.list(path)
 	local fileData = {}
 	for _, v in pairs(files) do
 		local filePath = fs.combine(path, v)
 		if fs.isDir(filePath) then
-			fileData[v] = loadFilesIn(filePath, encode)
+			fileData[v] = loadFilesIn(filePath)
 		else
 			local file = fs.open(filePath, "r")
-			fileData[v] = encode(file.readAll())
+			fileData[v] = file.readAll()
 			file.close()
 		end
 	end
 	return fileData
 end
-LocalDirectory.readPackage = function(self, packageId, encode, metadataOnly)
+LocalDirectory.readPackage = function(self, packageId, metadataOnly)
 	local path = self:getPackagePath(packageId)
 	if fs.isDir(path) then
 		local package = {id = packageId}
 		if not metadataOnly then
-			package.contents = loadFilesIn(path, encode)
+			package.contents = loadFilesIn(path)
 		end
 		return package
 	else
@@ -67,12 +67,12 @@ LocalDirectory.bindPackageId = function(self, packageId)
 	end
 	return {name = packageId.name, version = version}
 end
-LocalDirectory.bindPackage = function(self, packageId, encode, metadataOnly)
+LocalDirectory.bindPackage = function(self, packageId, metadataOnly)
 	local package, errorMessage = self:bindPackageId(packageId)
 	if package == nil then
 		return nil, errorMessage
 	end
-	return self:readPackage(package, encode, metadataOnly)
+	return self:readPackage(package, metadataOnly)
 end
 LocalDirectory.getAvailablePackages = function(self)
 	local packages = {}
