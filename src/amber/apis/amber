@@ -230,14 +230,17 @@ PackageInstallation.installPackage = function(self, package)
 	
 	self.onProgress(string.format("Installing package %s...", formatPackageId(package.id)))
 	local installed = self:getInstalledPackages()
-	local existing = installed.packages[package.id.name] or {contents = {}}
+	local existing = installed.packages[package.id.name] or {}
 	
 	local filesWritten = {}
 	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
-	for existingFile in pairs(existing.contents) do
-		if filesWritten[existingFile] == nil then
-			self.onProgress(string.format("  Removing obsolete file: %s", existingFile))
-			fs.delete(existingFile)
+	-- TODO: This check is only needed for legacy package lists.
+	if existing.contents ~= nil then
+		for existingFile in pairs(existing.contents) do
+			if filesWritten[existingFile] == nil then
+				self.onProgress(string.format("  Removing obsolete file: %s", existingFile))
+				fs.delete(existingFile)
+			end
 		end
 	end
 	
