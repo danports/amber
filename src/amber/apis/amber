@@ -137,7 +137,7 @@ PackageClient.buildNuggetFor = function(self, packageId)
 	-- TODO: Grab package dependencies
 	-- TODO: Write code to intercept os.loadAPI and dofile, maybe even fs.open
 	package.contents[entryPoint] = nil
-	return Nugget.new("_nuggetFiles = " .. textutils.serialize(package.contents) .. [[
+	return Nugget.new(entryPoint, "_nuggetFiles = " .. textutils.serialize(package.contents) .. [[
 
 ]] .. program)
 end
