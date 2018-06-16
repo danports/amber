@@ -61,10 +61,12 @@ GitHub.getAvailablePackages = function(self)
 	
 	local packages = {}
 	for _, file in ipairs(repoRoot.contents) do
-		-- TODO: Read the manifest.
-		packages[file] = {
-			id = {name = packageId.name, version = version}
-		}
+		if getmetatable(item) == github.Tree then
+			-- TODO: Read the manifest.
+			packages[file.path] = {
+				id = {name = file.path, version = version}
+			}
+		end
 	end
 	return packages
 end
