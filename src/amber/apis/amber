@@ -65,18 +65,18 @@ PackageClient.bindPackage = function(self, packageId)
 		end
 	end
 end
-local function packageSatisfies(package, packageId)
-	if package.id.name ~= packageId.name then
+local function isSatisfiedBy(specId, packageId)
+	if specId.name ~= packageId.name then
 		return false
 	end
-	if packageId.version == nil then
+	if specId.version == nil then
 		return true
 	end
-	return version.new(packageId.version):compareTo(version.new(package.id.version)) == 0
+	return version.new(specId.version):compareTo(version.new(packageId.version)) == 0
 end
 local function bundleContains(msg, packageId)
 	for _, package in pairs(msg) do
-		if packageSatisfies(package, packageId) then
+		if isSatisfiedBy(packageId, package.id) then
 			return true
 		end
 	end
@@ -262,16 +262,6 @@ PackageInstallation.installBundle = function(self, bundle)
 		os.reboot()
 	end
 end
-PackageInstallation.updateBundle = function(self, bundle)
-	local toInstall = {}
-	local installed = self:getInstalledPackages()
-	for _, package in pairs(bundle) do
-		if installed.packages[package.id.name] then
-			table.insert(toInstall, package)
-		end
-	end
-	self:installBundle(toInstall)
-end
 PackageInstallation.installPackages = function(self, client, packages, userInstalled)
 	if userInstalled == nil then
 		userInstalled = true
@@ -287,6 +277,14 @@ local function packageIdListContains(packages, packageId)
 		end
 	end
 	return false
+end
+PackageInstallation.getInstalledPackage = function(self, packageId)
+	local installed = self:getInstalledPackages()
+	for _, pkg in pairs(installed.packages) do
+		if isSatisfiedBy(packageId, pkg.id) then
+			return pkg
+		end
+	end
 end
 PackageInstallation.updatePackages = function(self, client, packages)
 	local installed = self:getInstalledPackages()

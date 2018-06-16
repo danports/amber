@@ -16,9 +16,11 @@ function updatePackages(interactive)
 	installation:updatePackages(client)
 end
 
-local function handleBundleUpdate(bundle)
+local function handleBundleUpdate(update)
 	local _, installation = createClient()
-	installation:updateBundle(bundle)
+	if installation:getInstalledPackage(update.packageUpdated) then
+		installation:installBundle(update.bundle)
+	end
 end
 
 -- TODO: This doesn't really belong here, but it's handy for now. Move to autostartup perhaps.
