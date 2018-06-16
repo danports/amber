@@ -13,11 +13,11 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/amber")
 
-local path = shell.dir()
 -- Connect to an Amber server by default.
-local client = amber.PackageClient.fromConfigurationPath(path, {{type = "AmberServer"}})
+-- Load the configuration from the program's location, but update the current folder.
+local client = amber.PackageClient.fromConfigurationPath(fs.getDir(shell.getRunningProgram()), {{type = "AmberServer"}})
 local installation = amber.PackageInstallation.new(
-	path,
+	shell.dir(),
 	-- Edit template files interactively.
 	function(file) shell.run("edit", "/" .. file) end,
 	function(progress) print(progress) end
