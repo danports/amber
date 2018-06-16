@@ -226,6 +226,7 @@ Repository.new = function(user, name, auth)
 end
 Repository.tree = function(self, sha)
 	sha = sha or "master"
+	-- TODO: This is a nice thought, but not great in practice since master can change frequently!
 	if not __repoPriv[self].trees[sha] then
 		__repoPriv[self].trees[sha] = Tree.new(self, sha)
 	end

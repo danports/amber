@@ -262,6 +262,16 @@ PackageInstallation.installBundle = function(self, bundle)
 		os.reboot()
 	end
 end
+PackageInstallation.updateBundle = function(self, bundle)
+	local toInstall = {}
+	local installed = self:getInstalledPackages()
+	for _, package in pairs(bundle) do
+		if installed.packages[package.id.name] then
+			table.insert(toInstall, package)
+		end
+	end
+	self:installBundle(toInstall)
+end
 PackageInstallation.installPackages = function(self, client, packages, userInstalled)
 	if userInstalled == nil then
 		userInstalled = true

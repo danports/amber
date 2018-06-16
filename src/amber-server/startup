@@ -36,10 +36,9 @@ end
 
 -- Update broadcasting
 function deployUpdate(toDeploy)
-	if toDeploy == nil or toDeploy == "amber-server" then
-		-- Deploy our own updates first.
+	if toDeploy == "amber-server" then
+		-- TODO: Can we just use autoupdater here?
 		log.info("Installing Amber server update...")
-		serializer.writeToFile("/state", {broadcastOnStartup = (toDeploy == nil), updateToDeploy = toDeploy})
 		local installation = amber.PackageInstallation.new(nil, nil, log.info)
 		installation:installPackages(client, {{name = "amber-server"}})
 	else
@@ -48,38 +47,24 @@ function deployUpdate(toDeploy)
 end
 
 function broadcastUpdate(toDeploy)
-	local updating = "global"
-	if toDeploy ~= nil then
-		updating = toDeploy
-	end
-	log.info(string.format("Broadcasting availability of package update: %s", updating))
+	log.info(string.format("Broadcasting availability of package update: %s", toDeploy))
 	-- TODO: rednet.broadcast - is that the best way to do this?
-	rednet.broadcast(net.createMessage("packageUpdateAvailable", toDeploy))
+	rednet.broadcast(net.createMessage("bundleUpdateAvailable", client:getBundle({{name = toDeploy}}))
 end
 
 -- Startup
-function readState()
-	client = amber.PackageClient.fromConfigurationPath()
-
-	local state = serializer.readFromFile("/state")
-	if state.broadcastOnStartup then
-		broadcastUpdate(state.updateToDeploy)
-	end
-	fs.delete("/state")
-end
-
 function onStartup()
 	net.registerRawMessageHandler("sendPackages", sendPackages)
 	net.registerRawMessageHandler("downloadPackage", downloadPackage)
 	net.registerRawMessageHandler("sendAvailablePackages", sendAvailablePackages)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 
+	dofile("config")
 	log.info(string.format("Amber: Listening on %s...", net.openModem(config.modem)))
 	dns.register("updates") -- TODO: Drop legacy protocol name.
 	dns.register("amber")
-	readState()
+	client = amber.PackageClient.fromConfigurationPath()
 end
 
-dofile("config")
 onStartup()
 events.runParallelMessageLoop()

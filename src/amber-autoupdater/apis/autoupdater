@@ -16,9 +16,9 @@ function updatePackages(interactive)
 	installation:updatePackages(client)
 end
 
-local function handlePackageUpdate(packageName)
-	local client, installation = createClient()
-	installation:updatePackages(client, {{name = packageName}})
+local function handleBundleUpdate(bundle)
+	local _, installation = createClient()
+	installation:updateBundle(bundle)
 end
 
 -- TODO: This doesn't really belong here, but it's handy for now. Move to autostartup perhaps.
@@ -32,7 +32,9 @@ local function printSystemInfo()
 end
 
 function initialize()
-	net.registerMessageHandler("packageUpdateAvailable", handlePackageUpdate)
+	-- TODO: Add an option to check for updates on startup or periodically.
+	-- This would be useful for systems that aren't servers, that only run when needed.
+	net.registerMessageHandler("bundleUpdateAvailable", handleBundleUpdate)
 
 	events.registerHandler("char", function(evt, pressed)
 		if pressed == "u" then
