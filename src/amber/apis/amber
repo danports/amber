@@ -38,16 +38,7 @@ PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	end
 	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories"))
 end
-local function applyEncoder(contents, encoder)
-	for k, v in pairs(contents) do
-		if type(v) == "table" then
-			applyEncoder(v, encoder)
-		else
-			contents[k] = encoder(v)
-		end
-	end
-end
-local function createPackage(package, encoder)
+local function createPackage(package)
 	if not package.manifest then
 		-- TODO: The latter is a legacy path for backwards compatibility.
 		local paths = {".manifest", "manifest"}
@@ -63,17 +54,13 @@ local function createPackage(package, encoder)
 			package.manifest = {}
 		end
 	end
-	
-	if encoder then
-		applyEncoder(package.contents, encoder)
-	end
 	return package
 end
-PackageClient.bindPackage = function(self, packageId, encoder)
+PackageClient.bindPackage = function(self, packageId)
 	for _, repo in pairs(self.repositories) do
 		local result = repo:bindPackage(packageId)
 		if result ~= nil then
-			return createPackage(result, encoder)
+			return createPackage(result)
 		end
 	end
 end
@@ -94,29 +81,29 @@ local function bundleContains(msg, packageId)
 	end
 	return false
 end
-PackageClient.bundlePackage = function(self, msg, packageId, userInstalled, encoder)
+PackageClient.bundlePackage = function(self, msg, packageId, userInstalled)
 	if bundleContains(msg, packageId) then
 		return
 	end
-	local package = self:bindPackage(packageId, encoder)
+	local package = self:bindPackage(packageId)
 	if package == nil then
 		return {errorMessage = string.format("Unable to locate package %s", formatPackageId(packageId))}
 	end
 	package.userInstalled = userInstalled
 	table.insert(msg, package)
-	self:bundlePackages(msg, package.manifest.dependencies, nil, encoder)
+	self:bundlePackages(msg, package.manifest.dependencies, nil)
 end
-PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled, encoder)
+PackageClient.bundlePackages = function(self, msg, toPackage, userInstalled)
 	if toPackage == nil then
 		return
 	end
 	for _, packageId in pairs(toPackage) do
-		self:bundlePackage(msg, packageId, userInstalled, encoder)
+		self:bundlePackage(msg, packageId, userInstalled)
 	end
 end
-PackageClient.getBundle = function(self, toPackage, userInstalled, encoder)
+PackageClient.getBundle = function(self, toPackage, userInstalled)
 	local bundle = {}
-	self:bundlePackages(bundle, toPackage, userInstalled, encoder)
+	self:bundlePackages(bundle, toPackage, userInstalled)
 	return bundle
 end
 PackageClient.getAvailablePackages = function(self)
@@ -129,12 +116,6 @@ PackageClient.getAvailablePackages = function(self)
 		end
 	end
 	return packages
-end
-
--- Encoding
--- TODO: Eliminate these - they shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
-function encode(data)
-	return string.gsub(string.gsub(string.gsub(string.gsub(data, "@", "@0"), "\n", "@1"), "\"", "@2"), "\\", "@3")
 end
 
 -- Local package installation
@@ -274,6 +255,7 @@ PackageInstallation.installPackages = function(self, client, packages, userInsta
 	if userInstalled == nil then
 		userInstalled = true
 	end
+	self.onProgress(string.format("Installing %i packages...", #packages))
 	local bundle = client:getBundle(packages, userInstalled)
 	self:installBundle(bundle)
 end

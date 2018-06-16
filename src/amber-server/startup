@@ -41,7 +41,7 @@ end
 function broadcastUpdate(toDeploy)
 	log.info(string.format("Broadcasting availability of package update: %s", toDeploy))
 	-- TODO: rednet.broadcast - is that the best way to do this?
-	local bundle = client:getBundle({{name = toDeploy}}, nil, amber.encode) -- TODO: Remove the old encoder
+	local bundle = client:getBundle({{name = toDeploy}}, nil)
 	rednet.broadcast(net.createMessage("bundleUpdateAvailable", 
 		{
 			packageUpdated = {name = toDeploy},
