@@ -41,6 +41,7 @@ end
 local function createPackage(package)
 	if not package.manifest then
 		-- TODO: The latter is a legacy path for backwards compatibility.
+		-- Remove it after all packages have been migrated to the new format.
 		local paths = {".manifest", "manifest"}
 		for _, path in ipairs(paths) do
 			local contents = package.contents[path]
@@ -251,13 +252,16 @@ PackageInstallation.installBundle = function(self, bundle)
 		os.reboot()
 	end
 end
+PackageInstallation.installPackagesCore = function(self, client, packages, userInstalled)
+	local bundle = client:getBundle(packages, userInstalled)
+	self:installBundle(bundle)
+end
 PackageInstallation.installPackages = function(self, client, packages, userInstalled)
 	if userInstalled == nil then
 		userInstalled = true
 	end
 	self.onProgress(string.format("Installing %i packages...", #packages))
-	local bundle = client:getBundle(packages, userInstalled)
-	self:installBundle(bundle)
+	self:installPackagesCore(client, packages, userInstalled)
 end
 local function packageIdListContains(packages, packageId)
 	for _, id in pairs(packages) do
@@ -288,7 +292,7 @@ PackageInstallation.updatePackages = function(self, client, packages)
 		return
 	end
 	self.onProgress(string.format("Updating %i packages...", #toRequest))
-	self:installPackages(client, toRequest, false)
+	self:installPackagesCore(client, toRequest, false)
 end
 PackageInstallation.removePackage = function(self, package)
 	self.onProgress(string.format("Removing package %s...", formatPackageId(package)))
