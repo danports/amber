@@ -64,7 +64,9 @@ local function createPackage(package, encoder)
 		end
 	end
 	
-	applyEncoder(package.contents, encoder)
+	if encoder then
+		applyEncoder(package.contents, encoder)
+	end
 	return package
 end
 PackageClient.bindPackage = function(self, packageId, encoder)
