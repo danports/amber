@@ -118,6 +118,23 @@ PackageClient.getAvailablePackages = function(self)
 	end
 	return packages
 end
+local function writeToFilesystem(filesystem, path, contents)
+	for name, data in pairs(contents) do
+		local fullPath = fs.combine(path, name)
+		if type(data) == "table" then
+			writeToFilesystem(filesystem, fullPath, data)
+		else
+			filesystem[fullPath] = data
+		end
+	end
+end
+local function buildFilesystem(bundle)
+	local filesystem = {}
+	for _, package in pairs(bundle) do
+		writeToFilesystem(filesystem, "", package.contents)
+	end
+	return filesystem
+end
 PackageClient.buildNuggetFor = function(self, packageId)
 	local package = self:bindPackage(packageId)
 	if package == nil then
@@ -134,10 +151,13 @@ PackageClient.buildNuggetFor = function(self, packageId)
 		return nil, "Unable to locate entry point"
 	end
 	
-	-- TODO: Grab package dependencies
+	local bundle = {package}
+	self:bundlePackages(bundle, package.manifest.dependencies)
+	local filesystem = buildFilesystem(bundle)
+	filesystem[entryPoint] = nil
+
 	-- TODO: Write code to intercept os.loadAPI and dofile, maybe even fs.open
-	package.contents[entryPoint] = nil
-	return Nugget.new(entryPoint, "_nuggetFiles = " .. textutils.serialize(package.contents) .. [[
+	return Nugget.new(entryPoint, "_nuggetFiles = " .. textutils.serialize(filesystem) .. [[
 
 ]] .. program)
 end
