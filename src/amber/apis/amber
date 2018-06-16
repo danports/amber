@@ -155,35 +155,38 @@ PackageClient.buildNuggetFor = function(self, packageId)
 	self:bundlePackages(bundle, package.manifest.dependencies)
 	local filesystem = buildFilesystem(bundle)
 
-	-- TODO: Try to intercept fs.open instead of loadfile, if possible.
-	return Nugget.new(entryPoint, "local _nuggetFiles = " .. textutils.serialize(filesystem) .. [[
+	return Nugget.new(entryPoint, "-- " .. formatPackageId(package.id) .. [[
+
+local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
 
 local _baseFolder = fs.getDir(shell.getRunningProgram())
-local originalLoadfile = loadfile
-_G.loadfile = function(file, env)
+local originalOpen = fs.open
+fs.open = function(file, mode)
 	if file:sub(1, _baseFolder:len()) == _baseFolder then
 		-- TODO: Check for / separating
 		local localFile = file:sub(_baseFolder:len() + 2)
 		local ours = _nuggetFiles[localFile]
 		if ours then
-			return load( ours, file, "t", env )
+			-- TODO: Implement a full string reader handle.
+			return {
+				readAll = function() return ours end,
+				close = function() end
+			}
 		end
 	end
-	return originalLoadfile(file, env)
+	return originalOpen(file, mode)
 end
 
 local args = {...}
 local ok, err = pcall(function()
-	local program = loadfile(fs.combine(_baseFolder, ]] .. textutils.serialize(entryPoint) .. [[))
-	-- TODO: How can we do this in a more general way?
-	getfenv(program).shell = shell
+	local program = loadfile(fs.combine(_baseFolder, ]] .. textutils.serialize(entryPoint) .. [[), _ENV)
 	program(table.unpack(args))
 end)
 if not ok then
-	print(err)
+	printError(err)
 end
 
-_G.loadfile = originalLoadfile]])
+fs.open = originalOpen]])
 end
 
 -- Nuggets
