@@ -39,7 +39,11 @@ local commands = {
 		installation:installPackages(client, createPackageIds(args))
 	end,
 	update = function(args)
-		installation:updatePackages(client, createPackageIds(args))
+		local toUpdate
+		if next(args) ~= nil then
+			toUpdate = createPackageIds(args)
+		end
+		installation:updatePackages(client, toUpdate)
 	end,
 	remove = function(args)
 		if next(args) == nil then
