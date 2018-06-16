@@ -45,10 +45,14 @@ local function loadFilesIn(path, encode)
 	end
 	return fileData
 end
-LocalDirectory.readPackage = function(self, packageId, encode)
+LocalDirectory.readPackage = function(self, packageId, encode, metadataOnly)
 	local path = self:getPackagePath(packageId)
 	if fs.isDir(path) then
-		return {id = packageId, contents = loadFilesIn(path, encode)}
+		local package = {id = packageId}
+		if not metadataOnly then
+			package.contents = loadFilesIn(path, encode)
+		end
+		return package
 	else
 		return nil, "Unable to locate package path"
 	end
@@ -63,12 +67,19 @@ LocalDirectory.bindPackageId = function(self, packageId)
 	end
 	return {name = packageId.name, version = version}
 end
-LocalDirectory.bindPackage = function(self, packageId, encode)
+LocalDirectory.bindPackage = function(self, packageId, encode, metadataOnly)
 	local package, errorMessage = self:bindPackageId(packageId)
 	if package == nil then
 		return nil, errorMessage
 	end
-	return self:readPackage(package, encode)
+	return self:readPackage(package, encode, metadataOnly)
+end
+LocalDirectory.getAvailablePackages = function(self)
+	local packages = {}
+	for _, file in ipairs(fs.list(self.path)) do
+		packages[file] = self:bindPackage({name = file}, nil, true)
+	end
+	return packages
 end
 
 return LocalDirectory

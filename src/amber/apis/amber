@@ -107,6 +107,17 @@ PackageClient.getBundle = function(self, toPackage, userInstalled)
 	self:bundlePackages(bundle, toPackage, userInstalled)
 	return bundle
 end
+PackageClient.getAvailablePackages = function(self)
+	local packages = {}
+	for _, repo in pairs(self.repositories) do
+		for name, packageInfo in pairs(repo:getAvailablePackages()) do
+			if packages[name] == nil then
+				packages[name] = packageInfo
+			end
+		end
+	end
+	return packages
+end
 
 -- Encoding
 -- TODO: Eliminate these - they shouldn't be necessary anymore. Have to do that carefully to avoid breaking existing systems.
@@ -119,7 +130,7 @@ function decode(data)
 end
 
 -- Local package installation
--- TODO: Add other operations like remove, search, info, etc. on the installation.
+-- TODO: Add other operations like list, info, etc. on the installation/client.
 PackageInstallation = {}
 PackageInstallation.__index = PackageInstallation
 PackageInstallation.new = function(path, onEdit, onProgress)

@@ -14,23 +14,25 @@ GitHub.new = function(data)
 		path = data.path or "src"
 	}, GitHub)
 end
-GitHub.bindPackageId = function(self, packageId)
-	local version = packageId.version
-	local tree
-	if version == nil then
-		if self.defaultVersion then
-			tree = self.repo:tree(self.defaultVersion)
-			version = string.format("%s-%s-%s", tree:getCommit().data.committer.date, self.defaultVersion, tree.sha:sub(1, 7))
-		else
-			local release = self.repo:latestRelease()
-			version = release.tag
-			tree = release:tree()
-		end
+GitHub.getDefaultTree = function(self)
+	local version, tree
+	if self.defaultVersion then
+		tree = self.repo:tree(self.defaultVersion)
+		version = string.format("%s-%s-%s", tree:getCommit().data.committer.date, self.defaultVersion, tree.sha:sub(1, 7))
 	else
-		local release = self.repo:releaseByTag(version)
+		local release = self.repo:latestRelease()
+		version = release.tag
 		tree = release:tree()
 	end
 	return version, tree
+end
+GitHub.bindPackageId = function(self, packageId)
+	local version = packageId.version
+	if version == nil then
+		return self:getDefaultTree()
+	end
+	local release = self.repo:releaseByTag(version)
+	return version, release:tree()
 end
 GitHub.bindPackage = function(self, packageId, encode)
 	local version, tree = self:bindPackageId(packageId)
@@ -49,6 +51,22 @@ GitHub.bindPackage = function(self, packageId, encode)
 		id = {name = packageId.name, version = version},
 		contents = contents
 	}
+end
+GitHub.getAvailablePackages = function(self)
+	local version, tree = self:getDefaultTree()
+	local repoRoot = tree:getChild(self.path)
+	if repoRoot == nil then
+		return {}
+	end
+	
+	local packages = {}
+	for _, file in ipairs(repoRoot.contents) do
+		-- TODO: Read the manifest.
+		packages[file] = {
+			id = {name = packageId.name, version = version}
+		}
+	end
+	return packages
 end
 
 return GitHub

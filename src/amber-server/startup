@@ -23,9 +23,15 @@ function downloadPackage(args, sender)
 		log.err(errorMessage)
 		net.sendMessage(sender, "packageDownload", {errorMessage = errorMessage})
 	else
-		log.info(string.format("Sending %s to %i", amber.formatPackageId(package.id), sender))
 		net.sendMessage(sender, "packageDownload", package)
+		log.info(string.format("Sent %s to %i", amber.formatPackageId(package.id), sender))
 	end
+end
+
+function sendAvailablePackages(args, sender)
+	log.info(string.format("Sending available packages to %i...", sender))
+	local packages = client:getAvailablePackages()
+	net.sendMessage(sender, "availablePackages", packages)
 end
 
 -- Update broadcasting
@@ -65,6 +71,7 @@ end
 function onStartup()
 	net.registerRawMessageHandler("sendPackages", sendPackages)
 	net.registerRawMessageHandler("downloadPackage", downloadPackage)
+	net.registerRawMessageHandler("sendAvailablePackages", sendAvailablePackages)
 	net.registerMessageHandler("deployUpdate", deployUpdate)
 
 	log.info(string.format("Amber: Listening on %s...", net.openModem(config.modem)))

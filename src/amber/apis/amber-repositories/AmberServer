@@ -15,5 +15,13 @@ AmberServer.bindPackage = function(self, packageId, encode)
 	end
 	return package
 end
+AmberServer.getAvailablePackages = function(self)
+	net.sendMessage(self.server, "sendAvailablePackages", {})
+	local package = net.pullMessage("availablePackages")
+	if package.errorMessage then
+		return nil, package.errorMessage
+	end
+	return package
+end
 
 return AmberServer

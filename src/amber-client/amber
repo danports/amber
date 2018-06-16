@@ -38,7 +38,7 @@ local commands = {
 		end
 		installation:installPackages(client, createPackageIds(args))
 	end,
-	update = function(args)
+	update = function()
 		installation:updatePackages(client)
 	end,
 	remove = function(args)
@@ -46,6 +46,14 @@ local commands = {
 			return false
 		end
 		installation:removePackages(createPackageIds(args))
+	end,
+	search = function(args)
+		local packages = client:getAvailablePackages()
+		for name, package in pairs(packages) do
+			if args[1] == nil or name:find(args[1]) then
+				print(amber.formatPackageId(package.id))
+			end
+		end
 	end
 }
 
@@ -61,4 +69,6 @@ if action == nil or commands[action] == nil or commands[action](args) == false t
 	print("   Updates all installed packages.")
 	print("amber remove <package1> <package2>...")
 	print("   Removes specified packages.")
+	print("amber search [<pattern>]")
+	print("   Lists all available packages, or just those matching <pattern>.")
 end
