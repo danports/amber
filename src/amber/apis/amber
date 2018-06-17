@@ -136,6 +136,9 @@ local function buildFilesystem(bundle)
 	return filesystem
 end
 local function loadIntoFilesystem(filesystem, files)
+	if files == nil then
+		return
+	end
 	for name, file in pairs(files) do
 		if fs.exists(file) then
 			if fs.isDir(file) then
