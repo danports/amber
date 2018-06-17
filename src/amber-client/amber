@@ -15,7 +15,8 @@ os.loadAPI("apis/amber")
 
 -- Connect to an Amber server by default.
 -- Load the configuration from the program's location, but update the current folder.
-local client = amber.PackageClient.fromConfigurationPath(fs.getDir(shell.getRunningProgram()), {{type = "AmberServer"}})
+local programDirectory = fs.getDir(shell.getRunningProgram())
+local client = amber.PackageClient.fromConfigurationPath(programDirectory, {{type = "AmberServer"}})
 local installation = amber.PackageInstallation.new(
 	shell.dir(),
 	-- Edit template files interactively.
@@ -35,7 +36,12 @@ local function resolveNuggetItems(items)
 	local files = {}
 	for _, item in ipairs(items) do
 		if item:sub(1, 5) == "file:" then
-			table.insert(files, shell.resolve(item:sub(6)))
+			local file = shell.resolve(item:sub(6)))
+			local name = file
+			if programDirectory ~= "" and file:sub(1, programDirectory:len() + 1) == programDirectory .. "/" then
+				name = file:sub(programDirectory:len() + 2)
+			end
+			files[name] = file
 		elseif item:sub(1, 8) == "package:" then
 			table.insert(packages, {name = item:sub(9)})
 		else

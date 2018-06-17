@@ -136,12 +136,12 @@ local function buildFilesystem(bundle)
 	return filesystem
 end
 local function loadIntoFilesystem(filesystem, files)
-	for _, file in pairs(files) do
+	for name, file in pairs(files) do
 		if fs.exists(file) then
 			if fs.isDir(file) then
 				return false, string.format("File %s is a directory", file)
 			else
-				filesystem[file] = serializer.readFile(file)
+				filesystem[name] = serializer.readFile(file)
 			end
 		else
 			return false, string.format("File %s does not exist", file)
@@ -188,14 +188,16 @@ fs.open = function(file, mode)
 	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder .. "/" then
 		localFile = file:sub(_baseFolder:len() + 2)
 	end
-	local ours = _nuggetFiles[localFile]
-	if not ours then
-		return originalOpen(file, mode)
+	if localFile then
+		local ours = _nuggetFiles[localFile]
+		if ours then
+			return {
+				readAll = function() return ours end,
+				close = function() end
+			}
+		end
 	end
-	return {
-		readAll = function() return ours end,
-		close = function() end
-	}
+	return originalOpen(file, mode)
 end
 
 local args = {...}
