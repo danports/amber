@@ -37,7 +37,7 @@ local function resolveNuggetItems(items)
 		if item:sub(1, 5) == "file:" then
 			table.insert(files, shell.resolve(item:sub(6)))
 		elseif item:sub(1, 8) == "package:" then
-			table.insert(packages, {{name = item:sub(9)}})
+			table.insert(packages, {name = item:sub(9)})
 		else
 			print(string.format("Unknown nugget item %s; ignoring it", item))
 		end
