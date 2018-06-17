@@ -38,9 +38,7 @@ local function loadFilesIn(path)
 		if fs.isDir(filePath) then
 			fileData[v] = loadFilesIn(filePath)
 		else
-			local file = fs.open(filePath, "r")
-			fileData[v] = file.readAll()
-			file.close()
+			fileData[v] = serializer.readFile(filePath)
 		end
 	end
 	return fileData

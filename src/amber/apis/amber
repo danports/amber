@@ -135,7 +135,21 @@ local function buildFilesystem(bundle)
 	end
 	return filesystem
 end
-PackageClient.buildNuggetFor = function(self, packageId)
+local function loadIntoFilesystem(filesystem, files)
+	for _, file in pairs(files) do
+		if fs.exists(file) then
+			if fs.isDir(file) then
+				return false, string.format("File %s is a directory", file)
+			else
+				filesystem[file] = serializer.readFile(file)
+			end
+		else
+			return false, string.format("File %s does not exist", file)
+		end
+	end
+	return true
+end
+PackageClient.buildNuggetFor = function(self, packageId, additionalFiles)
 	local package = self:bindPackage(packageId)
 	if package == nil then
 		return nil, "Unable to locate package"
@@ -154,6 +168,10 @@ PackageClient.buildNuggetFor = function(self, packageId)
 	local bundle = {package}
 	self:bundlePackages(bundle, package.manifest.dependencies)
 	local filesystem = buildFilesystem(bundle)
+	local ok, err = loadIntoFilesystem(filesystem, additionalFiles)
+	if not ok then
+		return nil, err
+	end
 
 	-- TODO: Implement a full string reader handle.
 	return Nugget.new(entryPoint, "-- " .. formatPackageId(package.id) .. [[
