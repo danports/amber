@@ -149,7 +149,7 @@ local function loadIntoFilesystem(filesystem, files)
 	end
 	return true
 end
-PackageClient.buildNuggetFor = function(self, packageId, additionalFiles)
+PackageClient.buildNuggetFor = function(self, packageId, additionalPackages, additionalFiles)
 	local package = self:bindPackage(packageId)
 	if package == nil then
 		return nil, "Unable to locate package"
@@ -167,6 +167,7 @@ PackageClient.buildNuggetFor = function(self, packageId, additionalFiles)
 	
 	local bundle = {package}
 	self:bundlePackages(bundle, package.manifest.dependencies)
+	self:bundlePackages(bundle, additionalPackages)
 	local filesystem = buildFilesystem(bundle)
 	local ok, err = loadIntoFilesystem(filesystem, additionalFiles)
 	if not ok then

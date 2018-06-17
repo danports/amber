@@ -30,12 +30,19 @@ local function createPackageIds(names)
 	end
 	return ids
 end
-local function resolveFiles(files)
-	local result = {}
-	for k, file in pairs(files) do
-		result[k] = shell.resolve(file)
+local function resolveNuggetItems(items)
+	local packages = {}
+	local files = {}
+	for _, item in ipairs(items) do
+		if item:sub(1, 5) == "file:" then
+			table.insert(files, shell.resolve(item:sub(6)))
+		elseif item:sub(1, 8) == "package:" then
+			table.insert(packages, {{name = item:sub(9)}})
+		else
+			print(string.format("Unknown nugget item %s; ignoring it", item))
+		end
 	end
-	return result
+	return packages, files
 end
 
 local commands = {
@@ -72,8 +79,9 @@ local commands = {
 		end
 		local op = args[1]
 		local opActions = {
-			save = function(packageId, ...) 
-				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, resolveFiles({...}))
+			save = function(packageId, ...)
+				local additionalPackages, additionalFiles = resolveNuggetItems({...})
+				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, additionalPackages, additionalFiles)
 				if nugget == nil then
 					printError(errorMessage)
 					return
@@ -113,8 +121,8 @@ if action == nil or commands[action] == nil or commands[action](args) == false t
 	print("  Removes specified packages.")
 	print("amber search [<pattern>]")
 	print("  Lists all available packages, or just those matching <pattern>.")
-	print("amber nugget save <package> [<file1> <file2>...]")
-	print("  Save nugget to file, optionally with additional files included.")
+	print("amber nugget save <package> [<package:name> <file:path>...]")
+	print("  Save nugget to file with additional packages and files included.")
 	print("amber nugget run <package> ...")
 	print("  Runs nugget with provided arguments.")
 end
