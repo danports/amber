@@ -72,8 +72,8 @@ local commands = {
 		end
 		local op = args[1]
 		local opActions = {
-			save = function(packageId, args) 
-				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, packageId, resolveFiles(args))
+			save = function(packageId, ...) 
+				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, packageId, resolveFiles({...}))
 				if nugget == nil then
 					printError(errorMessage)
 					return
@@ -81,13 +81,13 @@ local commands = {
 				nugget:writeTo(shell.dir())
 				print(string.format("%s nugget saved.", packageId))
 			end,
-			run = function(packageId, args)
+			run = function(packageId, ...)
 				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, packageId)
 				if nugget == nil then
 					printError(errorMessage)
 					return
 				end
-				nugget:run(table.unpack(args))
+				nugget:run(...)
 			end
 		}
 		local opAction = opActions[op]
