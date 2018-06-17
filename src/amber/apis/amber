@@ -188,7 +188,7 @@ fs.open = function(file, mode)
 	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder .. "/" then
 		localFile = file:sub(_baseFolder:len() + 2)
 	end
-	if localFile then
+	if localFile and mode == "r" then
 		local ours = _nuggetFiles[localFile]
 		if ours then
 			return {
