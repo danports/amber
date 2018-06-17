@@ -36,7 +36,7 @@ local function resolveNuggetItems(items)
 	local files = {}
 	for _, item in ipairs(items) do
 		if item:sub(1, 5) == "file:" then
-			local file = shell.resolve(item:sub(6)))
+			local file = shell.resolve(item:sub(6))
 			local name = file
 			if programDirectory ~= "" and file:sub(1, programDirectory:len() + 1) == programDirectory .. "/" then
 				name = file:sub(programDirectory:len() + 2)
