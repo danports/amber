@@ -1,4 +1,5 @@
 {
+	description = "Amber server: distributes packages to clients and broadcasts package updates",
 	dependencies = {
 		{name = "log"},
 		{name = "events"},

@@ -1,3 +1,4 @@
 {
+	description = "Amber support for fetching packages from GitHub",
 	dependencies = {{name = "github"}}
 }

@@ -1,3 +1,4 @@
 {
+	description = "GitHub API: supports querying and downloading GitHub repositories",
 	dependencies = {{name = "dkjson"}}
 }

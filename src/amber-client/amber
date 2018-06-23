@@ -81,6 +81,9 @@ local commands = {
 			return
 		end
 		print(package.id.name)
+		if package.available ~= nil and package.available.description ~= nil then
+			print(package.available.description)
+		end
 		print(string.format("State: %s", package.state))
 		if package.available ~= nil then
 			print(string.format("Available version: %s", package.available.id.version))

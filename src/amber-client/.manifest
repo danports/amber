@@ -1,4 +1,5 @@
 {
+	description = "Amber command line client",
 	entryPoint = "amber",
 	dependencies = {
 		{name = "events"},
