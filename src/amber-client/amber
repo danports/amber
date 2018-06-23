@@ -81,25 +81,27 @@ local commands = {
 			return
 		end
 		print(package.id.name)
-		if package.available ~= nil and package.available.description ~= nil then
-			print(package.available.description)
+		if package.available and package.available.manifest and package.available.manifest.description then
+			print(package.available.manifest.description)
 		end
 		print(string.format("State: %s", package.state))
-		if package.available ~= nil then
+		if package.available then
 			print(string.format("Available version: %s", package.available.id.version))
 			local manifest = package.available.manifest
-			if manifest ~= nil and manifest.dependencies ~= nil then
-				print("Dependencies:")
+			if manifest and manifest.dependencies then
+				print("Depends on:")
 				for _, dependency in pairs(manifest.dependencies) do
 					print(string.format("  %s", amber.formatPackageId(dependency)))
 				end
 			end
 		end
-		if package.installed ~= nil then
+		if package.installed then
 			print(string.format("Installed version: %s", package.installed.id.version))
-			print("Installed files:")
-			for file in pairs(package.installed.contents) do
-				print(string.format("  %s", file))
+			if package.installed.contents and next(package.installed.contents) then
+				print("Installed files:")
+				for file in pairs(package.installed.contents) do
+					print(string.format("  %s", file))
+				end
 			end
 		end
 	end,
