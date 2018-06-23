@@ -23,9 +23,9 @@ local installation = amber.PackageInstallation.new(
 	function(progress) print(progress) end
 )
 
-local function createPackageIds(names)
+local function createPackageIds(...)
 	local ids = {}
-	for _, name in ipairs(names) do
+	for _, name in ipairs({...}) do
 		table.insert(ids, {name = name})
 	end
 	return ids
@@ -68,7 +68,7 @@ local function listCommands(commands, path)
 		if command.command then
 			print(fullPath)
 		else
-			listCommand(command, fullPath .. " ")
+			listCommands(command, fullPath .. " ")
 		end
 	end
 end
@@ -110,20 +110,20 @@ commands.help = {
 commands.install = {
 	description = "Installs or updates specified packages.",
 	usage = "amber install <package1> <package2>...",
-	command = function(args)
-		if next(args) == nil then
+	command = function(...)
+		if select(1, ...) == nil then
 			return false
 		end
-		installation:installPackages(client, createPackageIds(args))
+		installation:installPackages(client, createPackageIds(...))
 	end
 }
 commands.update = {
 	description = "Updates specified or all installed packages.",
 	usage = "amber update [<package1> <package2>...]",
-	command = function(args)
+	command = function(...)
 		local toUpdate
-		if next(args) ~= nil then
-			toUpdate = createPackageIds(args)
+		if select(1, ...) ~= nil then
+			toUpdate = createPackageIds(...)
 		end
 		installation:updatePackages(client, toUpdate)
 	end
@@ -131,21 +131,20 @@ commands.update = {
 commands.remove = {
 	description = "Removes specified packages.",
 	usage = "amber remove <package1> <package2>...",
-	command = function(args)
-		if next(args) == nil then
+	command = function(...)
+		if select(1, ...) == nil then
 			return false
 		end
-		installation:removePackages(createPackageIds(args))
+		installation:removePackages(createPackageIds(...))
 	end
 }
 commands.show = {
 	description = "Shows detailed information about a package.",
 	usage = "amber show <package>",
-	command = function(args)
-		if #args ~= 1 then
+	command = function(packageName, more)
+		if packageName == nil or more ~= nil then
 			return false
 		end
-		local packageName = args[1]
 		local package = installation:getPackage(client, {name = packageName})
 		if not package.state then
 			printError(string.format("Package %s not found", packageName))
@@ -180,9 +179,9 @@ commands.show = {
 commands.list = {
 	description = "Lists packages, optionally filtering by name and state.",
 	usage = "amber list [name:<pattern>] [state:<installed|available>]",
-	command = function(args)
+	command = function(...)
 		local pattern, state
-		for _, arg in ipairs(args) do
+		for _, arg in ipairs({...}) do
 			if arg:sub(1, 5) == "name:" then
 				if pattern == nil then
 					pattern = arg:sub(6)
@@ -229,7 +228,7 @@ commands.nugget = {
 	},
 	run = {
 		description = "Runs nugget with provided arguments.",
-		usage = "amber nugget run <package> ...",
+		usage = "amber nugget run <package> [...]",
 		command = function(packageId, ...)
 			if packageId == nil then
 				return false
