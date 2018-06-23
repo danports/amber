@@ -84,6 +84,13 @@ local commands = {
 		print(string.format("State: %s", package.state))
 		if package.available ~= nil then
 			print(string.format("Available version: %s", package.available.id.version))
+			local manifest = package.available.manifest
+			if manifest ~= nil and manifest.dependencies ~= nil then
+				print("Dependencies:")
+				for _, dependency in pairs(manifest.dependencies) do
+					print(string.format("  %s", amber.formatPackageId(dependency)))
+				end
+			end
 		end
 		if package.installed ~= nil then
 			print(string.format("Installed version: %s", package.installed.id.version))
