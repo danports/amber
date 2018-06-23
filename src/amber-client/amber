@@ -154,7 +154,7 @@ local commands = {
 					printError(errorMessage)
 					return
 				end
-				nugget:run(...)
+				nugget:run(_ENV, ...)
 			end
 		}
 		local opAction = opActions[op]

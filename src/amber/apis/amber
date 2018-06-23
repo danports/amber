@@ -137,7 +137,7 @@ local function buildFilesystem(bundle)
 end
 local function loadIntoFilesystem(filesystem, files)
 	if files == nil then
-		return
+		return true
 	end
 	for name, file in pairs(files) do
 		if fs.exists(file) then
@@ -229,8 +229,8 @@ Nugget.writeTo = function(self, path)
 	file.write(self.contents)
 	file.close()
 end
-Nugget.run = function(self, ...)
-	local f = loadstring(self.contents)
+Nugget.run = function(self, env, ...)
+	local f = load(self.contents, entryPoint, "t", env)
 	return f(...)
 end
 
