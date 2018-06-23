@@ -49,28 +49,99 @@ local function resolveNuggetItems(items)
 	end
 	return packages, files
 end
+local function getCommand(commands, op, ...)
+	if op == nil then
+		return
+	end
+	local command = commands[op]
+	if command == nil then
+		return
+	elseif command.command == nil then
+		return getCommand(command, ...)
+	else
+		return command, {...}
+	end
+end
+local function listCommands(commands, path)
+	for name, command in pairs(commands) do
+		local fullPath = path .. name
+		if command.command then
+			print(fullPath)
+		else
+			listCommand(command, fullPath .. " ")
+		end
+	end
+end
+local function printUsage(command)
+	print("Usage:")
+	print(command.usage)
+	print(string.format("  %s", command.description))
+end
+local function runCommand(commands, ...)
+	local command, args = getCommand(commands, ...)
+	if command == nil then
+		printError("Unknown command; run 'amber help' for usage instructions")
+		return
+	end
+	local result = command.command(table.unpack(args))
+	if result == false then
+		printUsage(command)
+	end
+end
 
-local commands = {
-	install = function(args)
+local commands = {}
+commands.help = {
+	description = "Displays help for Amber commands.",
+	usage = "amber help [<command>]",
+	command = function(op, ...)
+		if op == nil then
+			print("Available commands: Run 'amber help <command>' for usage instructions.")
+			listCommands(commands, "")
+		else
+			local command = getCommand(commands, op, ...)
+			if command == nil then
+				printError("Unknown command")
+				return
+			end
+			printUsage(command)
+		end
+	end
+}
+commands.install = {
+	description = "Installs or updates specified packages.",
+	usage = "amber install <package1> <package2>...",
+	command = function(args)
 		if next(args) == nil then
 			return false
 		end
 		installation:installPackages(client, createPackageIds(args))
-	end,
-	update = function(args)
+	end
+}
+commands.update = {
+	description = "Updates specified or all installed packages.",
+	usage = "amber update [<package1> <package2>...]",
+	command = function(args)
 		local toUpdate
 		if next(args) ~= nil then
 			toUpdate = createPackageIds(args)
 		end
 		installation:updatePackages(client, toUpdate)
-	end,
-	remove = function(args)
+	end
+}
+commands.remove = {
+	description = "Removes specified packages.",
+	usage = "amber remove <package1> <package2>...",
+	command = function(args)
 		if next(args) == nil then
 			return false
 		end
 		installation:removePackages(createPackageIds(args))
-	end,
-	show = function(args)
+	end
+}
+commands.show = {
+	description = "Shows detailed information about a package.",
+	usage = "amber show <package>",
+	command = function(args)
 		if #args ~= 1 then
 			return false
 		end
@@ -104,8 +175,12 @@ local commands = {
 				end
 			end
 		end
-	end,
-	list = function(args)
+	end
+}
+commands.list = {
+	description = "Lists packages, optionally filtering by name and state.",
+	usage = "amber list [name:<pattern>] [state:<installed|available>]",
+	command = function(args)
 		local pattern, state
 		for _, arg in ipairs(args) do
 			if arg:sub(1, 5) == "name:" then
@@ -131,59 +206,45 @@ local commands = {
 			table.insert(toPrint, {package.id.name, package.id.version, package.state})
 		end
 		textutils.tabulate(table.unpack(toPrint))
-	end,
-	nugget = function(args)
-		if #args < 2 then
-			return false
-		end
-		local op = args[1]
-		local opActions = {
-			save = function(packageId, ...)
-				local additionalPackages, additionalFiles = resolveNuggetItems({...})
-				local nugget, errorMessage = client:buildNuggetFor({name = packageId}, additionalPackages, additionalFiles)
-				if nugget == nil then
-					printError(errorMessage)
-					return
-				end
-				nugget:writeTo(shell.dir())
-				print(string.format("%s nugget saved.", packageId))
-			end,
-			run = function(packageId, ...)
-				local nugget, errorMessage = client:buildNuggetFor({name = packageId})
-				if nugget == nil then
-					printError(errorMessage)
-					return
-				end
-				nugget:run(_ENV, ...)
-			end
-		}
-		local opAction = opActions[op]
-		if opAction == nil then
-			return false
-		end
-		local packageId = args[2]
-		opAction(packageId, select(3, table.unpack(args)))
 	end
+}
+commands.nugget = {
+	save = {
+		description = "Save nugget to file with additional packages and files included.",
+		usage = "amber nugget save <package> [<package:name> <file:path>...]",
+		command = function(packageId, ...)
+			if packageId == nil then
+				return false
+			end
+
+			local additionalPackages, additionalFiles = resolveNuggetItems({...})
+			local nugget, errorMessage = client:buildNuggetFor({name = packageId}, additionalPackages, additionalFiles)
+			if nugget == nil then
+				printError(errorMessage)
+				return
+			end
+			nugget:writeTo(shell.dir())
+			print(string.format("%s nugget saved.", packageId))
+		end
+	},
+	run = {
+		description = "Runs nugget with provided arguments.",
+		usage = "amber nugget run <package> ...",
+		command = function(packageId, ...)
+			if packageId == nil then
+				return false
+			end
+			local nugget, errorMessage = client:buildNuggetFor({name = packageId})
+			if nugget == nil then
+				printError(errorMessage)
+				return
+			end
+			nugget:run(_ENV, ...)
+		end
+	}
 }
 
 -- TODO: Do we need this? We might be performing a local operation only.
+-- Modify the net library to automatically open a modem when you make a network call.
 net.openModem()
-local action = select(1, ...)
-local args = {select(2, ...)}
-if action == nil or commands[action] == nil or commands[action](args) == false then
-	print("Usage:")
-	print("amber install <package1> <package2>...")
-	print("  Installs or updates specified packages.")
-	print("amber update [<package1> <package2>...]")
-	print("  Updates specified or all installed packages.")
-	print("amber remove <package1> <package2>...")
-	print("  Removes specified packages.")
-	print("amber show <package>")
-	print("  Shows detailed information about a package.")
-	print("amber list [name:<pattern>] [state:<installed|available>]")
-	print("  Lists packages, optionally filtering by name and state.")
-	print("amber nugget save <package> [<package:name> <file:path>...]")
-	print("  Save nugget to file with additional packages and files included.")
-	print("amber nugget run <package> ...")
-	print("  Runs nugget with provided arguments.")
-end
+runCommand(commands, ...)
