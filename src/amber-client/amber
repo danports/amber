@@ -95,7 +95,7 @@ local commands = {
 		for name, package in pairs(packages) do
 			table.insert(toPrint, {package.id.name, package.id.version, package.state})
 		end
-		textutils.tabulate(toPrint)
+		textutils.tabulate(table.unpack(toPrint))
 	end,
 	nugget = function(args)
 		if #args < 2 then

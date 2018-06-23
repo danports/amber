@@ -395,9 +395,9 @@ PackageInstallation.getInstalledPackage = function(self, packageId)
 		end
 	end
 end
-local getPackageState(installed, packageId)
-	local package = installed[packageId.name]
-	if isSatisfiedBy(packageId, package.id) ~= nil then
+local function getPackageState(installed, packageId)
+	local package = installed.packages[packageId.name]
+	if package ~= nil and isSatisfiedBy(packageId, package.id) then
 		return "installed"
 	end
 	return "available"
