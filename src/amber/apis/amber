@@ -402,7 +402,20 @@ local function getPackageState(installed, packageId)
 	end
 	return "available"
 end
+PackageInstallation.getPackage = function(self, client, packageId)
+	local state
+	local available = client:bindPackage(packageId)
+	if available ~= nil then
+		state = "available"
+	end
+	local installed = self:getInstalledPackage(packageId)
+	if installed ~= nil then
+		state = "installed"
+	end
+	return {id = packageId, installed = installed, available = available, state = state}
+end
 PackageInstallation.listPackages = function(self, client, pattern, state)
+	-- TODO: Return something like {id, installed = {}, available = {}, state = ""}
 	local installed = self:getInstallationMetadata()
 	local list
 	if state == "installed" then

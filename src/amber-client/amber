@@ -70,6 +70,29 @@ local commands = {
 		end
 		installation:removePackages(createPackageIds(args))
 	end,
+	show = function(args)
+		if #args ~= 1 then
+			return false
+		end
+		local packageName = args[1]
+		local package = installation:getPackage(client, {name = packageName})
+		if not package.state then
+			printError(string.format("Package %s not found", packageName))
+			return
+		end
+		print(package.id.name)
+		print(string.format("State: %s", package.state))
+		if package.available ~= nil then
+			print(string.format("Available version: %s", package.available.id.version))
+		end
+		if package.installed ~= nil then
+			print(string.format("Installed version: %s", package.installed.id.version))
+			print("Installed files:")
+			for file in pairs(package.installed.contents) do
+				print(string.format("  %s", file))
+			end
+		end
+	end,
 	list = function(args)
 		local pattern, state
 		for _, arg in ipairs(args) do
@@ -143,6 +166,8 @@ if action == nil or commands[action] == nil or commands[action](args) == false t
 	print("  Updates specified or all installed packages.")
 	print("amber remove <package1> <package2>...")
 	print("  Removes specified packages.")
+	print("amber show <package>")
+	print("  Shows detailed information about a package.")
 	print("amber list [name:<pattern>] [state:<installed|available>]")
 	print("  Lists packages, optionally filtering by name and state.")
 	print("amber nugget save <package> [<package:name> <file:path>...]")
