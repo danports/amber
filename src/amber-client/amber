@@ -1,6 +1,5 @@
 -- If we're running off a disk, we want to load all of the APIs from the disk, not the computer,
 -- to ensure that they are compatible with this code.
--- TODO: Side-by-side loading (we could just embed all dependencies into this file).
 if os.originalLoadAPI == nil then
 	os.originalLoadAPI = os.loadAPI
 	local dir = fs.getDir(shell.getRunningProgram())
@@ -71,13 +70,32 @@ local commands = {
 		end
 		installation:removePackages(createPackageIds(args))
 	end,
-	search = function(args)
-		local packages = client:getAvailablePackages()
-		for name, package in pairs(packages) do
-			if args[1] == nil or name:find(args[1]) then
-				print(amber.formatPackageId(package.id))
+	list = function(args)
+		local pattern, state
+		for _, arg in ipairs(args) do
+			if arg:sub(1, 5) == "name:" then
+				if pattern == nil then
+					pattern = arg:sub(6)
+				else
+					-- Multiple search patterns are not supported.
+					return false
+				end
+			elseif arg:sub(1, 6) == "state:" then
+				if state == nil then
+					state = arg:sub(7)
+				else
+					return false
+				end
+			else
+				return false
 			end
 		end
+		local packages = installation:listPackages(client, pattern, state)
+		local toPrint = {}
+		for name, package in pairs(packages) do
+			table.insert(toPrint, {package.id.name, package.id.version, package.state})
+		end
+		textutils.tabulate(toPrint)
 	end,
 	nugget = function(args)
 		if #args < 2 then
@@ -125,8 +143,8 @@ if action == nil or commands[action] == nil or commands[action](args) == false t
 	print("  Updates specified or all installed packages.")
 	print("amber remove <package1> <package2>...")
 	print("  Removes specified packages.")
-	print("amber search [<pattern>]")
-	print("  Lists all available packages, or just those matching <pattern>.")
+	print("amber list [name:<pattern>] [state:<installed|available>]")
+	print("  Lists packages, optionally filtering by name and state.")
 	print("amber nugget save <package> [<package:name> <file:path>...]")
 	print("  Save nugget to file with additional packages and files included.")
 	print("amber nugget run <package> ...")

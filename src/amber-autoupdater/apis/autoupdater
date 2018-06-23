@@ -34,8 +34,6 @@ local function printSystemInfo()
 end
 
 function initialize()
-	-- TODO: Add an option to check for updates on startup or periodically.
-	-- This would be useful for systems that aren't servers, that only run when needed.
 	net.registerMessageHandler("bundleUpdateAvailable", handleBundleUpdate)
 
 	events.registerHandler("char", function(evt, pressed)

@@ -235,9 +235,9 @@ Nugget.run = function(self, ...)
 end
 
 -- Local package installation
--- TODO: Add other operations like list, info, etc. on the installation/client.
 PackageInstallation = {}
 PackageInstallation.__index = PackageInstallation
+-- TODO: Pass the client to the installation constructor.
 PackageInstallation.new = function(path, onEdit, onProgress)
 	return setmetatable({
 		path = path or "",
@@ -249,7 +249,7 @@ PackageInstallation.getPackageListPaths = function(self)
 	-- TODO: The latter path is a legacy one that exists only for backwards compatibility.
 	return {fs.combine(self.path, ".packages"), fs.combine(self.path, "packageList")}
 end
-PackageInstallation.getInstalledPackages = function(self)
+PackageInstallation.getInstallationMetadata = function(self)
 	for _, path in ipairs(self:getPackageListPaths()) do
 		local contents = serializer.readFromFile(path)
 		if next(contents) ~= nil then
@@ -334,7 +334,7 @@ PackageInstallation.installPackage = function(self, package)
 	end
 	
 	self.onProgress(string.format("Installing package %s...", formatPackageId(package.id)))
-	local installed = self:getInstalledPackages()
+	local installed = self:getInstallationMetadata()
 	local existing = installed.packages[package.id.name] or {}
 	
 	local filesWritten = {}
@@ -388,15 +388,49 @@ local function packageIdListContains(packages, packageId)
 	return false
 end
 PackageInstallation.getInstalledPackage = function(self, packageId)
-	local installed = self:getInstalledPackages()
+	local installed = self:getInstallationMetadata()
 	for _, pkg in pairs(installed.packages) do
 		if isSatisfiedBy(packageId, pkg.id) then
 			return pkg
 		end
 	end
 end
+local getPackageState(installed, packageId)
+	local package = installed[packageId.name]
+	if isSatisfiedBy(packageId, package.id) ~= nil then
+		return "installed"
+	end
+	return "available"
+end
+PackageInstallation.listPackages = function(self, client, pattern, state)
+	local installed = self:getInstallationMetadata()
+	local list
+	if state == "installed" then
+		list = installed.packages
+	else
+		-- We only fetch all packages if we really need them.
+		list = client:getAvailablePackages()
+	end
+	
+	local results = {}
+	for _, package in pairs(list) do
+		local matches = true
+		if pattern ~= nil and package.id.name:find(pattern) == nil then
+			matches = false
+		end
+		local packageState = getPackageState(installed, package.id)
+		if state ~= nil and packageState ~= state then
+			matches = false
+		end
+		if matches then
+			package.state = packageState
+			table.insert(results, package)
+		end
+	end
+	return results
+end
 PackageInstallation.updatePackages = function(self, client, packages)
-	local installed = self:getInstalledPackages()
+	local installed = self:getInstallationMetadata()
 	local toRequest = {}
 	for _, pkg in pairs(installed.packages) do
 		if packages == nil or packageIdListContains(packages, pkg.id) then
@@ -411,7 +445,7 @@ PackageInstallation.updatePackages = function(self, client, packages)
 end
 PackageInstallation.removePackage = function(self, package)
 	self.onProgress(string.format("Removing package %s...", formatPackageId(package)))
-	local installed = self:getInstalledPackages()
+	local installed = self:getInstallationMetadata()
 	local existing = installed.packages[package.name]
 	if existing == nil then
 		local message = string.format("ERROR: Package %s not installed", formatPackageId(package))
@@ -420,10 +454,6 @@ PackageInstallation.removePackage = function(self, package)
 	end
 
 	for existingFile in pairs(existing.contents) do
-		-- TODO: What about template files?
-		-- TODO: What about empty directories?
-		-- TODO: What if this package is needed by others?
-		-- TODO: What about purging dependencies which are no longer needed?
 		self.onProgress(string.format("  Removing: %s", existingFile))
 		fs.delete(existingFile)
 	end
