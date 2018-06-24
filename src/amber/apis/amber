@@ -15,7 +15,12 @@ end
 -- Package binding
 PackageClient = {}
 PackageClient.__index = PackageClient
-PackageClient.new = function(repoConfigs, repoTypesPath)
+PackageClient.new = function(configFilePath, repoTypesPath, defaultConfig)
+	local repoConfigs = serializer.readFromFile(configFilePath)
+	if next(repoConfigs) == nil and defaultConfig ~= nil then
+		repoConfigs = defaultConfig
+	end
+
 	local repositories = {}
 	local repoTypes = {}
 	for _, repoConfig in pairs(repoConfigs) do
@@ -28,15 +33,21 @@ PackageClient.new = function(repoConfigs, repoTypesPath)
 		table.insert(repositories, repoType.new(repoConfig))
 	end
 
-	return setmetatable({repositories = repositories}, PackageClient)
+	return setmetatable({
+		repoConfigs = repoConfigs,
+		configFilePath = configFilePath
+		repositories = repositories
+	}, PackageClient)
 end
 PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	path = path or ""
-	local repoConfigs = serializer.readFromFile(fs.combine(path, ".repositories"))
-	if next(repoConfigs) == nil and defaultConfig ~= nil then
-		repoConfigs = defaultConfig
+	return PackageClient.new(fs.combine(path, ".repositories"), fs.combine(path, "apis/amber-repositories"), defaultConfig)
+end
+PackageClient.saveConfiguration = function(self)
+	if fs.exists(self.configFilePath) then
+		return
 	end
-	return PackageClient.new(repoConfigs, fs.combine(path, "apis/amber-repositories"))
+	serializer.writeToFile(self.configFilePath, self.repoConfigs)
 end
 local function createPackage(package)
 	if not package.manifest then
@@ -237,9 +248,9 @@ end
 -- Local package installation
 PackageInstallation = {}
 PackageInstallation.__index = PackageInstallation
--- TODO: Pass the client to the installation constructor.
-PackageInstallation.new = function(path, onEdit, onProgress)
+PackageInstallation.new = function(client, path, onEdit, onProgress)
 	return setmetatable({
+		client = client,
 		path = path or "",
 		onEdit = onEdit,
 		onProgress = onProgress or function() end
@@ -353,6 +364,9 @@ PackageInstallation.installPackage = function(self, package)
 	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
 	installed.packages[package.id.name] = newMetadata
 	self:writeInstalledPackages(installed)
+	-- We ensure that the configuration is persisted so that we can update these packages later
+	-- if we're running the client as a nugget.
+	self.client:saveConfiguration()
 	
 	return result
 end
@@ -367,16 +381,16 @@ PackageInstallation.installBundle = function(self, bundle)
 		os.reboot()
 	end
 end
-PackageInstallation.installPackagesCore = function(self, client, packages, userInstalled)
-	local bundle = client:getBundle(packages, userInstalled)
+PackageInstallation.installPackagesCore = function(self, packages, userInstalled)
+	local bundle = self.client:getBundle(packages, userInstalled)
 	self:installBundle(bundle)
 end
-PackageInstallation.installPackages = function(self, client, packages, userInstalled)
+PackageInstallation.installPackages = function(self, packages, userInstalled)
 	if userInstalled == nil then
 		userInstalled = true
 	end
 	self.onProgress(string.format("Installing %i packages...", #packages))
-	self:installPackagesCore(client, packages, userInstalled)
+	self:installPackagesCore(packages, userInstalled)
 end
 local function packageIdListContains(packages, packageId)
 	for _, id in pairs(packages) do
@@ -402,9 +416,9 @@ local function getPackageState(installed, packageId)
 	end
 	return "available"
 end
-PackageInstallation.getPackage = function(self, client, packageId)
+PackageInstallation.getPackage = function(self, packageId)
 	local state
-	local available = client:bindPackage(packageId)
+	local available = self.client:bindPackage(packageId)
 	if available ~= nil then
 		state = "available"
 	end
@@ -414,7 +428,7 @@ PackageInstallation.getPackage = function(self, client, packageId)
 	end
 	return {id = packageId, installed = installed, available = available, state = state}
 end
-PackageInstallation.listPackages = function(self, client, pattern, state)
+PackageInstallation.listPackages = function(self, pattern, state)
 	-- TODO: Return something like {id, installed = {}, available = {}, state = ""}
 	local installed = self:getInstallationMetadata()
 	local list
@@ -422,7 +436,7 @@ PackageInstallation.listPackages = function(self, client, pattern, state)
 		list = installed.packages
 	else
 		-- We only fetch all packages if we really need them.
-		list = client:getAvailablePackages()
+		list = self.client:getAvailablePackages()
 	end
 	
 	local results = {}
@@ -442,7 +456,7 @@ PackageInstallation.listPackages = function(self, client, pattern, state)
 	end
 	return results
 end
-PackageInstallation.updatePackages = function(self, client, packages)
+PackageInstallation.updatePackages = function(self, packages)
 	local installed = self:getInstallationMetadata()
 	local toRequest = {}
 	for _, pkg in pairs(installed.packages) do
@@ -454,7 +468,7 @@ PackageInstallation.updatePackages = function(self, client, packages)
 		return
 	end
 	self.onProgress(string.format("Updating %i packages...", #toRequest))
-	self:installPackagesCore(client, toRequest, false)
+	self:installPackagesCore(toRequest, false)
 end
 PackageInstallation.removePackage = function(self, package)
 	self.onProgress(string.format("Removing package %s...", formatPackageId(package)))

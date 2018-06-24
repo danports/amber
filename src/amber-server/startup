@@ -31,8 +31,8 @@ function deployUpdate(toDeploy)
 	if toDeploy == "amber-server" then
 		-- TODO: Can we just use autoupdater here?
 		log.info("Installing Amber server update...")
-		local installation = amber.PackageInstallation.new(nil, nil, log.info)
-		installation:installPackages(client, {{name = "amber-server"}})
+		local installation = amber.PackageInstallation.new(client, nil, nil, log.info)
+		installation:installPackages({{name = "amber-server"}})
 	else
 		broadcastUpdate(toDeploy)
 	end

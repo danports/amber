@@ -17,6 +17,7 @@ os.loadAPI("apis/amber")
 local directory = shell.dir()
 local client = amber.PackageClient.fromConfigurationPath(fs.getDir(shell.getRunningProgram()), {{type = "AmberServer"}})
 local installation = amber.PackageInstallation.new(
+	client,
 	directory,
 	-- Edit template files interactively.
 	function(file) shell.run("edit", "/" .. file) end,
@@ -114,7 +115,7 @@ commands.install = {
 		if select(1, ...) == nil then
 			return false
 		end
-		installation:installPackages(client, createPackageIds(...))
+		installation:installPackages(createPackageIds(...))
 	end
 }
 commands.update = {
@@ -125,7 +126,7 @@ commands.update = {
 		if select(1, ...) ~= nil then
 			toUpdate = createPackageIds(...)
 		end
-		installation:updatePackages(client, toUpdate)
+		installation:updatePackages(toUpdate)
 	end
 }
 commands.remove = {
@@ -145,7 +146,7 @@ commands.show = {
 		if packageName == nil or more ~= nil then
 			return false
 		end
-		local package = installation:getPackage(client, {name = packageName})
+		local package = installation:getPackage({name = packageName})
 		if not package.state then
 			printError(string.format("Package %s not found", packageName))
 			return
@@ -199,7 +200,7 @@ commands.list = {
 				return false
 			end
 		end
-		local packages = installation:listPackages(client, pattern, state)
+		local packages = installation:listPackages(pattern, state)
 		local toPrint = {}
 		for name, package in pairs(packages) do
 			table.insert(toPrint, {package.id.name, package.id.version, package.state})
@@ -217,7 +218,7 @@ commands.nugget = {
 			end
 
 			local additionalPackages, additionalFiles = resolveNuggetItems({...})
-			local nugget, errorMessage = client:buildNuggetFor({name = packageId}, additionalPackages, additionalFiles)
+			local nugget, errorMessage = installation.client:buildNuggetFor({name = packageId}, additionalPackages, additionalFiles)
 			if nugget == nil then
 				printError(errorMessage)
 				return
@@ -233,7 +234,7 @@ commands.nugget = {
 			if packageId == nil then
 				return false
 			end
-			local nugget, errorMessage = client:buildNuggetFor({name = packageId})
+			local nugget, errorMessage = installation.client:buildNuggetFor({name = packageId})
 			if nugget == nil then
 				printError(errorMessage)
 				return

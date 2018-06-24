@@ -1,10 +1,9 @@
 os.loadAPI("apis/events")
 os.loadAPI("apis/amber")
 
-local function createClient()
+local function createInstallation()
 	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
-	local installation = amber.PackageInstallation.new(nil, editHandler, function(progress) print(progress) end)
-	return client, installation
+	return amber.PackageInstallation.new(client, nil, editHandler, function(progress) print(progress) end)
 end
 
 function updatePackages(interactive)
@@ -12,12 +11,12 @@ function updatePackages(interactive)
 	if interactive then
 		editHandler = function(file) shell.run("edit", "/" .. file) end
 	end
-	local client, installation = createClient()
-	installation:updatePackages(client)
+	local installation = createInstallation()
+	installation:updatePackages()
 end
 
 local function handleBundleUpdate(update)
-	local _, installation = createClient()
+	local installation = createInstallation()
 	if installation:getInstalledPackage(update.packageUpdated) then
 		installation:installBundle(update.bundle)
 	end
