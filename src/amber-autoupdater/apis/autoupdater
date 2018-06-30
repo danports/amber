@@ -13,6 +13,11 @@ function updatePackages(interactive)
 	end
 	local installation = createInstallation()
 	installation:updatePackages()
+	
+	local rebootTime = math.random(3) + 2
+	print(string.format("Rebooting in %i seconds...", rebootTime))
+	os.sleep(rebootTime)
+	os.reboot()
 end
 
 local function handleBundleUpdate(update)

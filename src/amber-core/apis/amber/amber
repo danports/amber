@@ -278,18 +278,14 @@ PackageInstallation.getInstallationMetadata = function(self)
 	return {version = 1, packages = {}}
 end
 PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
-	local rebootNeeded = false
 	if not fs.isDir(path) then
 		fs.makeDir(path)
 	end
 	for file, contents in pairs(data) do
 		local destination = fs.combine(path, file)
 		if type(contents) == "table" then
-			rebootNeeded = self:writePackageFiles(destination, contents, allFiles) or rebootNeeded
+			self:writePackageFiles(destination, contents, allFiles)
 		else
-			if file == "startup" then
-				rebootNeeded = true
-			end
 			local writeTo = destination
 			allFiles[writeTo] = {}
 			local editFile = false
@@ -316,7 +312,6 @@ PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
 			end
 		end
 	end
-	return rebootNeeded
 end
 local function extractPackageMetadata(package, allFiles)
 	local metadata = {}
@@ -357,7 +352,7 @@ PackageInstallation.installPackage = function(self, package)
 	local existing = installed.packages[package.id.name] or {}
 	
 	local filesWritten = {}
-	local result = self:writePackageFiles(self.path, package.contents, filesWritten)
+	self:writePackageFiles(self.path, package.contents, filesWritten)
 	-- TODO: This check is only needed for legacy package lists.
 	if existing.contents ~= nil then
 		for existingFile in pairs(existing.contents) do
@@ -378,18 +373,10 @@ PackageInstallation.installPackage = function(self, package)
 	-- We ensure that the configuration is persisted so that we can update these packages later
 	-- if we're running the client as a nugget.
 	self.client:saveConfiguration()
-	
-	return result
 end
 PackageInstallation.installBundle = function(self, bundle)
-	local rebootNeeded = false
 	for _, package in pairs(bundle) do
-		rebootNeeded = self:installPackage(package) or rebootNeeded
-	end
-	if rebootNeeded then
-		self.onProgress("Rebooting...")
-		os.sleep(3)
-		os.reboot()
+		self:installPackage(package)
 	end
 end
 PackageInstallation.installPackagesCore = function(self, packages, userInstalled)
