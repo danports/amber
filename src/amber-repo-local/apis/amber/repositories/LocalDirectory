@@ -1,3 +1,4 @@
+os.loadAPI("apis/serializer")
 os.loadAPI("apis/amber/version")
 
 local LocalDirectory = {}

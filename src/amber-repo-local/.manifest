@@ -1,0 +1,6 @@
+{
+	description = "Amber support for fetching packages from local directories",
+	dependencies = {
+		{name = "serializer"}
+	}
+}
