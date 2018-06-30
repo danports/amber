@@ -5,6 +5,12 @@ local function createInstallation()
 	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
 	return amber.PackageInstallation.new(client, nil, editHandler, function(progress) print(progress) end)
 end
+local function reboot()
+	local rebootTime = math.random(3) + 2
+	print(string.format("Rebooting in %i seconds...", rebootTime))
+	os.sleep(rebootTime)
+	os.reboot()
+end
 
 function updatePackages(interactive)
 	local editHandler
@@ -13,17 +19,14 @@ function updatePackages(interactive)
 	end
 	local installation = createInstallation()
 	installation:updatePackages()
-	
-	local rebootTime = math.random(3) + 2
-	print(string.format("Rebooting in %i seconds...", rebootTime))
-	os.sleep(rebootTime)
-	os.reboot()
+	reboot()
 end
 
 local function handleBundleUpdate(update)
 	local installation = createInstallation()
 	if installation:getInstalledPackage(update.packageUpdated) then
 		installation:installBundle(update.bundle)
+		reboot()
 	end
 end
 
