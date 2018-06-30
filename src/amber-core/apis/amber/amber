@@ -135,13 +135,30 @@ PackageClient.getAvailablePackages = function(self)
 	end
 	return packages
 end
+local function getFilesystemEntry(filesystem, path, create)
+	if path == "" then
+		return filesystem
+	end
+	local dir = getFilesystemEntry(filesystem, fs.getDir(path), create)
+	if not dir then
+		return
+	end
+	local file = fs.getName(path)
+	local entry = dir[file]
+	if create and not entry then
+		entry = {}
+		dir[file] = entry
+	end
+	return entry
+end
 local function writeToFilesystem(filesystem, path, contents)
-	for name, data in pairs(contents) do
-		local fullPath = fs.combine(path, name)
-		if type(data) == "table" then
-			writeToFilesystem(filesystem, fullPath, data)
-		else
-			filesystem[fullPath] = data
+	if type(contents) == "string" then
+		local dir = fs.getDir(path)
+		local file = fs.getName(path)
+		getFilesystemEntry(filesystem, dir, true)[file] = contents
+	else
+		for name, data in pairs(contents) do
+			writeToFilesystem(filesystem, fs.combine(path, name), data)
 		end
 	end
 end
@@ -161,7 +178,7 @@ local function loadIntoFilesystem(filesystem, files)
 			if fs.isDir(file) then
 				return false, string.format("File %s is a directory", file)
 			else
-				filesystem[name] = serializer.readFile(file)
+				writeToFilesystem(filesystem, name, serializer.readFile(file))
 			end
 		else
 			return false, string.format("File %s does not exist", file)
@@ -202,9 +219,11 @@ PackageClient.buildNuggetFor = function(self, packageId, additionalPackages, add
 		end
 	end
 
-	local program = filesystem[entryPoint]
+	local program = getFilesystemEntry(filesystem, entryPoint)
 	if program == nil then
 		return nil, string.format("Unable to locate entry point %s", entryPoint)
+	elseif type(program) == "table" then
+		return nil, string.format("Entry point %s is a directory", entryPoint)
 	end	
 
 	-- TODO: Implement a full string reader handle.
@@ -215,24 +234,50 @@ PackageClient.buildNuggetFor = function(self, packageId, additionalPackages, add
 local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
 
 local _baseFolder = fs.getDir(shell.getRunningProgram())
-local originalOpen = fs.open
-fs.open = function(file, mode)
-	local localFile
-	if _baseFolder == "" then
-		localFile = file
-	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder .. "/" then
-		localFile = file:sub(_baseFolder:len() + 2)
+local function getFilesystemEntry(path)
+	if path == "" then
+		return _nuggetFiles
 	end
-	if localFile and mode == "r" then
-		local ours = _nuggetFiles[localFile]
-		if ours then
-			return {
-				readAll = function() return ours end,
-				close = function() end
-			}
-		end
+	local dir = getFilesystemEntry(fs.getDir(path))
+	if type(dir) == "table" then
+		return dir[fs.getName(path)]
+	end
+end
+local function getLocalFile(file)
+	if _baseFolder == "" then
+		return getFilesystemEntry(file)
+	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder .. "/" then
+		return getFilesystemEntry(file:sub(_baseFolder:len() + 2))
+	end
+end
+
+local originalOpen = fs.open
+local originalList = fs.list
+fs.open = function(file, mode)
+	local localFile = getLocalFile(file)
+	if type(localFile) == "string" and mode == "r" then
+		return {
+			readAll = function() return localFile end,
+			close = function() end
+		}
 	end
 	return originalOpen(file, mode)
+end
+fs.list = function(dir)
+	local results = originalList(dir)
+	local localDir = getLocalFile(dir)
+	if type(localDir) == "table" then
+		local set = {}
+		for _, file in pairs(results) do
+			set[file] = true
+		end
+		for name in pairs(localDir) then
+			if not set[name] then
+				table.insert(results, 1, name)
+			end
+		end
+	end
+	return results
 end
 
 local args = {...}
