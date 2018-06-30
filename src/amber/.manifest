@@ -1,0 +1,7 @@
+{
+	description = "Amber package manager: includes client and configuration for core Amber repositories",
+	dependencies = {
+		{name = "amber-client"},
+		{name = "amber-repo-github"}
+	}
+}

@@ -1,0 +1,8 @@
+{
+	{
+		type = "GitHub",
+		user = "danports",
+		name = "amber",
+		defaultVersion = "master"
+	}
+}
