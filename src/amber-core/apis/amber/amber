@@ -252,6 +252,7 @@ local function getLocalFile(file)
 end
 
 local originalOpen = fs.open
+local originalIsDir = fs.isDir
 local originalList = fs.list
 fs.open = function(file, mode)
 	local localFile = getLocalFile(file)
@@ -263,17 +264,27 @@ fs.open = function(file, mode)
 	end
 	return originalOpen(file, mode)
 end
-fs.list = function(dir)
-	local results = originalList(dir)
+fs.isDir = function(dir)
 	local localDir = getLocalFile(dir)
 	if type(localDir) == "table" then
-		local set = {}
-		for _, file in pairs(results) do
-			set[file] = true
-		end
-		for name in pairs(localDir) then
-			if not set[name] then
-				table.insert(results, 1, name)
+		return true
+	end
+	return originalIsDir(dir)
+end
+fs.list = function(dir)
+	local localDir = getLocalFile(dir)
+	if type(localDir) ~= "table" then
+		return originalList(dir)
+	end
+	
+	local results = {}
+	for file in pairs(localDir) do
+		table.insert(results, file)
+	end
+	if originalIsDir(dir) then
+		for _, name in pairs(originalList(dir)) do
+			if not localDir[name] then
+				table.insert(results, name)
 			end
 		end
 	end
@@ -289,7 +300,9 @@ if not ok then
 	printError(err)
 end
 
-fs.open = originalOpen]])
+fs.open = originalOpen
+fs.isDir = originalIsDir
+fs.list = originalList]])
 end
 
 -- Nuggets
