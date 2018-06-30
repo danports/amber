@@ -175,26 +175,41 @@ PackageClient.buildNuggetFor = function(self, packageId, additionalPackages, add
 		return nil, "Unable to locate package"
 	end
 	
-	local entryPoint = package.manifest.entryPoint
-	if entryPoint == nil then
-		return nil, "Package does not specify entry point"
-	end
-	
-	local program = package.contents[entryPoint]
-	if program == nil then
-		return nil, "Unable to locate entry point"
-	end
-	
 	local bundle = {package}
 	self:bundlePackages(bundle, package.manifest.dependencies)
 	self:bundlePackages(bundle, additionalPackages)
+	
 	local filesystem = buildFilesystem(bundle)
 	local ok, err = loadIntoFilesystem(filesystem, additionalFiles)
 	if not ok then
 		return nil, err
 	end
 
+	local entryPoint = package.manifest.entryPoint	
+	if entryPoint == nil then
+		local candidates = {}
+		for _, bundlePackage in pairs(bundle) do
+			if bundlePackage.manifest.entryPoint then
+				table.insert(candidates, bundlePackage.manifest.entryPoint)
+			end
+		end
+		if not next(candidates) then
+			return nil, "No entry point specified"
+		elseif #candidates > 1 then		
+			return nil, "Multiple potential entry points found; specify one in the primary package manifest"
+		else
+			entryPoint = candidates[1]
+		end
+	end
+
+	local program = filesystem[entryPoint]
+	if program == nil then
+		return nil, string.format("Unable to locate entry point %s", entryPoint)
+	end	
+
 	-- TODO: Implement a full string reader handle.
+	-- TODO: Can we insert a replacement fs in the ENV for the program and not the global namespace?
+	-- Set fs.__index to _G.fs.
 	return Nugget.new(entryPoint, "-- " .. formatPackageId(package.id) .. [[
 
 local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
