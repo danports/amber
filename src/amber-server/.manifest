@@ -6,6 +6,6 @@
 		{name = "net"},
 		{name = "dns"},
 		{name = "serializer"},
-		{name = "amber"}
+		{name = "amber-core"}
 	}
 }

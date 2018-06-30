@@ -4,6 +4,6 @@
 	dependencies = {
 		{name = "events"},
 		{name = "net"},
-		{name = "amber"}
+		{name = "amber-core"}
 	}
 }

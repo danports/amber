@@ -2,6 +2,6 @@
 	description = "Support library that updates installed packages automatically or upon request",
 	dependencies = {
 		{name = "events"},
-		{name = "amber"}
+		{name = "amber-core"}
 	}
 }
