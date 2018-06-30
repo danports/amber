@@ -1,4 +1,0 @@
-{
-	installWithoutTracking = true,
-	dependencies = {{name = "amber-repo-github"}}
-}
