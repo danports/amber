@@ -15,9 +15,15 @@ end
 -- Package binding
 PackageClient = {}
 PackageClient.__index = PackageClient
-PackageClient.new = function(configFilePath, repoTypesPath, defaultConfig)
-	local repoConfigs = serializer.readFromFile(configFilePath)
-	if next(repoConfigs) == nil and defaultConfig ~= nil then
+PackageClient.new = function(configFiles, repoTypesPath, defaultConfig)
+	local repoConfigs = {}
+	for _, configFile in ipairs(configFiles) do
+		local fileConfigs = serializer.readFromFile(configFile)
+		for _, repoConfig in ipairs(fileConfigs) do
+			table.insert(repoConfigs, repoConfig)
+		end
+	end
+	if not next(repoConfigs) and defaultConfig then
 		repoConfigs = defaultConfig
 	end
 
@@ -25,7 +31,7 @@ PackageClient.new = function(configFilePath, repoTypesPath, defaultConfig)
 	local repoTypes = {}
 	for _, repoConfig in pairs(repoConfigs) do
 		local repoType = repoTypes[repoConfig.type]
-		if repoType == nil then
+		if not repoType then
 			-- TODO: Better error handling.
 			repoType = dofile(fs.combine(repoTypesPath, repoConfig.type))
 			repoTypes[repoConfig.type] = repoType
@@ -35,19 +41,19 @@ PackageClient.new = function(configFilePath, repoTypesPath, defaultConfig)
 
 	return setmetatable({
 		repoConfigs = repoConfigs,
-		configFilePath = configFilePath,
 		repositories = repositories
 	}, PackageClient)
 end
 PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	path = path or ""
-	return PackageClient.new(fs.combine(path, ".repositories"), fs.combine(path, "apis/amber/repositories"), defaultConfig)
-end
-PackageClient.saveConfiguration = function(self)
-	if fs.exists(self.configFilePath) then
-		return
+	local configSources = fs.combine(path, "apis/amber/sources")
+	local configFiles = {fs.combine(path, ".repositories")}
+	if fs.isDir(configSources) then
+		for _, file in pairs(fs.list(configSources)) do
+			table.insert(configFiles, file)
+		end
 	end
-	serializer.writeToFile(self.configFilePath, self.repoConfigs)
+	return PackageClient.new(configFiles, fs.combine(path, "apis/amber/repositories"), defaultConfig)
 end
 local function createPackage(package)
 	if not package.manifest then
@@ -370,9 +376,6 @@ PackageInstallation.installPackage = function(self, package)
 	end
 	installed.packages[package.id.name] = newMetadata
 	self:writeInstalledPackages(installed)
-	-- We ensure that the configuration is persisted so that we can update these packages later
-	-- if we're running the client as a nugget.
-	self.client:saveConfiguration()
 end
 PackageInstallation.installBundle = function(self, bundle)
 	for _, package in pairs(bundle) do
