@@ -1,7 +1,0 @@
-{
-	description = "Temporary Amber metapackage",
-	installWithoutTracking = true,
-	dependencies = {
-		{name = "amber-core"}
-	}
-}
