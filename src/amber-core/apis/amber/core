@@ -1,6 +1,6 @@
 os.loadAPI("apis/serializer")
 os.loadAPI("apis/net")
-os.loadAPI("apis/version")
+os.loadAPI("apis/amber/version")
 
 -- TODO: Extract package ID, package, and package bundle concepts.
 function formatPackageId(packageId)
@@ -41,7 +41,7 @@ PackageClient.new = function(configFilePath, repoTypesPath, defaultConfig)
 end
 PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	path = path or ""
-	return PackageClient.new(fs.combine(path, ".repositories"), fs.combine(path, "apis/amber-repositories"), defaultConfig)
+	return PackageClient.new(fs.combine(path, ".repositories"), fs.combine(path, "apis/amber/repositories"), defaultConfig)
 end
 PackageClient.saveConfiguration = function(self)
 	if fs.exists(self.configFilePath) then

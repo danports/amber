@@ -1,4 +1,4 @@
-os.loadAPI("apis/version")
+os.loadAPI("apis/amber/version")
 
 local LocalDirectory = {}
 LocalDirectory.__index = LocalDirectory

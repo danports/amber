@@ -1,0 +1,7 @@
+{
+	description = "Amber core API: supports querying, installing, updating, and removing packages",
+	dependencies = {
+		{name = "serializer"},
+		{name = "net"}
+	}
+}

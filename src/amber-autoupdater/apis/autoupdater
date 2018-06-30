@@ -1,5 +1,5 @@
 os.loadAPI("apis/events")
-os.loadAPI("apis/amber")
+os.loadAPI("apis/amber/core")
 
 local function createInstallation()
 	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})

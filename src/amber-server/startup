@@ -3,7 +3,7 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/dns")
 os.loadAPI("apis/serializer")
-os.loadAPI("apis/amber")
+os.loadAPI("apis/amber/core")
 
 -- Package requests
 function downloadPackage(args, sender)

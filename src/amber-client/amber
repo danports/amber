@@ -10,7 +10,7 @@ end
 
 os.loadAPI("apis/events")
 os.loadAPI("apis/net")
-os.loadAPI("apis/amber")
+os.loadAPI("apis/amber/core")
 
 -- Connect to a server by default.
 -- Load the configuration from the program's location, but update the current folder.

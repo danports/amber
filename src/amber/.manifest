@@ -1,7 +1,6 @@
 {
-	description = "Amber core API: supports querying, installing, updating, and removing packages",
+	description = "Temporary Amber metapackage",
 	dependencies = {
-		{name = "serializer"},
-		{name = "net"}
+		{name = "amber-core"}
 	}
 }
