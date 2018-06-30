@@ -50,7 +50,7 @@ PackageClient.fromConfigurationPath = function(path, defaultConfig)
 	local configFiles = {fs.combine(path, ".repositories")}
 	if fs.isDir(configSources) then
 		for _, file in pairs(fs.list(configSources)) do
-			table.insert(configFiles, file)
+			table.insert(configFiles, fs.combine(configSources, file))
 		end
 	end
 	return PackageClient.new(configFiles, fs.combine(path, "apis/amber/repositories"), defaultConfig)
