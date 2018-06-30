@@ -337,6 +337,14 @@ PackageInstallation.writeInstalledPackages = function(self, installed)
 		fs.delete(paths[i])
 	end
 end
+local function removeFile(file)
+	fs.delete(file)
+	-- Remove the parent directory if empty.
+	local directory = fs.getDir(file)
+	if directory ~= "" and not next(fs.list(directory)) then
+		removeFile(directory)
+	end
+end
 PackageInstallation.installPackage = function(self, package)
 	if package.errorMessage ~= nil then
 		-- TODO: onError callback.
@@ -355,7 +363,7 @@ PackageInstallation.installPackage = function(self, package)
 		for existingFile in pairs(existing.contents) do
 			if filesWritten[existingFile] == nil then
 				self.onProgress(string.format("  Removing obsolete file: %s", existingFile))
-				fs.delete(existingFile)
+				removeFile(existingFile)
 			end
 		end
 	end
@@ -485,7 +493,7 @@ PackageInstallation.removePackage = function(self, package)
 
 	for existingFile in pairs(existing.contents) do
 		self.onProgress(string.format("  Removing: %s", existingFile))
-		fs.delete(existingFile)
+		removeFile(existingFile)
 	end
 	
 	installed.packages[package.name] = nil
