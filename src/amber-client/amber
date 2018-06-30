@@ -12,7 +12,7 @@ os.loadAPI("apis/events")
 os.loadAPI("apis/net")
 os.loadAPI("apis/amber")
 
--- Connect to an Amber server by default.
+-- Connect to a server by default.
 -- Load the configuration from the program's location, but update the current folder.
 local directory = shell.dir()
 local client = amber.PackageClient.fromConfigurationPath(fs.getDir(shell.getRunningProgram()), {{type = "AmberServer"}})
@@ -50,7 +50,8 @@ local function resolveNuggetItems(items)
 	end
 	return packages, files
 end
-local function getCommand(commands, op, ...)
+-- TODO: Extract command logic into its own API.
+local function getCommand(commands, path, op, ...)
 	if op == nil then
 		return
 	end
@@ -58,9 +59,9 @@ local function getCommand(commands, op, ...)
 	if command == nil then
 		return
 	elseif command.command == nil then
-		return getCommand(command, ...)
+		return getCommand(command, path .. op .. " ", ...)
 	else
-		return command, {...}
+		return command, path .. op, {...}
 	end
 end
 local function listCommands(commands, path)
@@ -73,44 +74,51 @@ local function listCommands(commands, path)
 		end
 	end
 end
-local function printUsage(command)
+local function getCommandName(name)
+	-- TODO: How will shell.getRunningProgram() work when running as a nugget?
+	return string.format("%s %s", fs.getName(shell.getRunningProgram()), name)
+end
+local function printUsage(command, name)
 	print("Usage:")
-	print(command.usage)
+	print(string.format("%s %s", getCommandName(name), command.usage))
 	print(string.format("  %s", command.description))
 end
 local function runCommand(commands, ...)
-	local command, args = getCommand(commands, ...)
+	local command, name, args = getCommand(commands, "", ...)
 	if command == nil then
-		printError("Unknown command; run 'amber help' for usage instructions")
+		printError("Unknown command")
+		print("Available commands:")
+		listCommands(commands, "")
 		return
 	end
 	local result = command.command(table.unpack(args))
 	if result == false then
-		printUsage(command)
+		printUsage(command, name)
 	end
 end
 
 local commands = {}
 commands.help = {
-	description = "Displays help for Amber commands.",
-	usage = "amber help [<command>]",
+	description = "Displays help for commands.",
+	usage = "[<command>]",
 	command = function(op, ...)
 		if op == nil then
-			print("Available commands: Run 'amber help <command>' for usage instructions.")
+			print(string.format("Run '%s <command>' for usage instructions.", getCommandName("help")))
+			print("Available commands:")
 			listCommands(commands, "")
 		else
-			local command = getCommand(commands, op, ...)
+			local command, name = getCommand(commands, "", op, ...)
 			if command == nil then
 				printError("Unknown command")
 				return
 			end
-			printUsage(command)
+			printUsage(command, name)
 		end
 	end
 }
 commands.install = {
 	description = "Installs or updates specified packages.",
-	usage = "amber install <package1> <package2>...",
+	usage = "<package1> <package2>...",
 	command = function(...)
 		if select(1, ...) == nil then
 			return false
@@ -120,7 +128,7 @@ commands.install = {
 }
 commands.update = {
 	description = "Updates specified or all installed packages.",
-	usage = "amber update [<package1> <package2>...]",
+	usage = "[<package1> <package2>...]",
 	command = function(...)
 		local toUpdate
 		if select(1, ...) ~= nil then
@@ -131,7 +139,7 @@ commands.update = {
 }
 commands.remove = {
 	description = "Removes specified packages.",
-	usage = "amber remove <package1> <package2>...",
+	usage = "<package1> <package2>...",
 	command = function(...)
 		if select(1, ...) == nil then
 			return false
@@ -141,7 +149,7 @@ commands.remove = {
 }
 commands.show = {
 	description = "Shows detailed information about a package.",
-	usage = "amber show <package>",
+	usage = "<package>",
 	command = function(packageName, more)
 		if packageName == nil or more ~= nil then
 			return false
@@ -179,7 +187,7 @@ commands.show = {
 }
 commands.list = {
 	description = "Lists packages, optionally filtering by name and state.",
-	usage = "amber list [name:<pattern>] [state:<installed|available>]",
+	usage = "[name:<pattern>] [state:<installed|available>]",
 	command = function(...)
 		local pattern, state
 		for _, arg in ipairs({...}) do
@@ -211,7 +219,7 @@ commands.list = {
 commands.nugget = {
 	save = {
 		description = "Save nugget to file with additional packages and files included.",
-		usage = "amber nugget save <package> [<package:name> <file:path>...]",
+		usage = "<package> [<package:name> <file:path>...]",
 		command = function(packageId, ...)
 			if packageId == nil then
 				return false
@@ -229,7 +237,7 @@ commands.nugget = {
 	},
 	run = {
 		description = "Runs nugget with provided arguments.",
-		usage = "amber nugget run <package> [...]",
+		usage = "<package> [...]",
 		command = function(packageId, ...)
 			if packageId == nil then
 				return false
