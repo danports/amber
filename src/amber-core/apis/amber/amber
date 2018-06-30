@@ -360,8 +360,11 @@ PackageInstallation.installPackage = function(self, package)
 		end
 	end
 	
-	local newMetadata = extractPackageMetadata(package, filesWritten)
-	newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
+	local newMetadata
+	if not package.manifest.installWithoutTracking then
+		newMetadata = extractPackageMetadata(package, filesWritten)
+		newMetadata.userInstalled = newMetadata.userInstalled or existing.userInstalled
+	end
 	installed.packages[package.id.name] = newMetadata
 	self:writeInstalledPackages(installed)
 	-- We ensure that the configuration is persisted so that we can update these packages later
