@@ -5,14 +5,14 @@ A ComputerCraft package manager
 There are several ways you can get started with Amber.
 
 ### Install an Amber package without installing Amber (from Pastebin)
-`> pastebin run <id> install <package>`
+`> pastebin run ACtzcSMD install <package>`
 
-To fully install Amber with all of its libraries: `> pastebin run <id> install amber`
+To fully install Amber with all of its libraries: `> pastebin run ACtzcSMD install amber`
 
 ### Install an Amber package (from Pastebin)
 You can use this method to install a package onto a computer or a disk.
 
-`> pastebin get <id> amber`
+`> pastebin get ACtzcSMD amber`
 `> amber install <package>`
 
 To fully install Amber with all of its libraries: `> amber install amber`
