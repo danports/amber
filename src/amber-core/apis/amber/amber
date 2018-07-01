@@ -226,63 +226,62 @@ PackageClient.buildNuggetFor = function(self, packageId, additionalPackages, add
 		return nil, string.format("Entry point %s is a directory", entryPoint)
 	end	
 
-	-- TODO: Implement a full string reader handle.
-	-- TODO: Can we insert a replacement fs in the ENV for the program and not the global namespace?
-	-- Set fs.__index to _G.fs.
+	-- Note that we can't override fs in the environment because certain functions like os.loadAPI
+	-- create an empty environment, so we have to override it in the global namespace.
 	return Nugget.new(entryPoint, "-- " .. formatPackageId(package.id) .. [[
 
 local _nuggetFiles = ]] .. textutils.serialize(filesystem) .. [[
 
 local _baseFolder = fs.getDir(shell.getRunningProgram())
-local function getFilesystemEntry(path)
+local function _getFilesystemEntry(path)
 	if path == "" then
 		return _nuggetFiles
 	end
-	local dir = getFilesystemEntry(fs.getDir(path))
+	local dir = _getFilesystemEntry(fs.getDir(path))
 	if type(dir) == "table" then
 		return dir[fs.getName(path)]
 	end
 end
-local function getLocalFile(file)
+local function _getLocalFile(file)
 	if _baseFolder == "" then
-		return getFilesystemEntry(file)
+		return _getFilesystemEntry(file)
 	elseif file:sub(1, _baseFolder:len() + 1) == _baseFolder .. "/" then
-		return getFilesystemEntry(file:sub(_baseFolder:len() + 2))
+		return _getFilesystemEntry(file:sub(_baseFolder:len() + 2))
 	end
 end
 
-local originalOpen = fs.open
-local originalIsDir = fs.isDir
-local originalList = fs.list
-fs.open = function(file, mode)
-	local localFile = getLocalFile(file)
+local _fs = _G.fs
+local virtualFs = {}
+setmetatable(virtualFs, {__index = _fs})
+function virtualFs.open(file, mode)
+	local localFile = _getLocalFile(file)
 	if type(localFile) == "string" and mode == "r" then
 		return {
 			readAll = function() return localFile end,
 			close = function() end
 		}
 	end
-	return originalOpen(file, mode)
+	return _fs.open(file, mode)
 end
-fs.isDir = function(dir)
-	local localDir = getLocalFile(dir)
+function virtualFs.isDir(dir)
+	local localDir = _getLocalFile(dir)
 	if type(localDir) == "table" then
 		return true
 	end
-	return originalIsDir(dir)
+	return _fs.isDir(dir)
 end
-fs.list = function(dir)
-	local localDir = getLocalFile(dir)
+function virtualFs.list(dir)
+	local localDir = _getLocalFile(dir)
 	if type(localDir) ~= "table" then
-		return originalList(dir)
+		return _fs.list(dir)
 	end
 	
 	local results = {}
 	for file in pairs(localDir) do
 		table.insert(results, file)
 	end
-	if originalIsDir(dir) then
-		for _, name in pairs(originalList(dir)) do
+	if _fs.isDir(dir) then
+		for _, name in pairs(_fs.list(dir)) do
 			if not localDir[name] then
 				table.insert(results, name)
 			end
@@ -290,6 +289,8 @@ fs.list = function(dir)
 	end
 	return results
 end
+
+_G.fs = virtualFs
 
 local args = {...}
 local ok, err = pcall(function()
@@ -300,9 +301,7 @@ if not ok then
 	printError(err)
 end
 
-fs.open = originalOpen
-fs.isDir = originalIsDir
-fs.list = originalList]])
+_G.fs = _fs]])
 end
 
 -- Nuggets
