@@ -219,7 +219,7 @@ commands.list = {
 commands.nugget = {
 	save = {
 		description = "Save nugget to file with additional packages and files included.",
-		usage = "<package> [<package:name> <file:path>...]",
+		usage = "<package> [package:<name>] [file:<path>]...",
 		command = function(packageId, ...)
 			if packageId == nil then
 				return false
