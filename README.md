@@ -96,7 +96,7 @@ Examples:
 - Run the amber-client package without installing it: `> amber nugget run amber-client list name:amber*`
 
 ## Client configuration
-You can configure the repositories where the Amber client will look for available packages. By default, the Amber client will look only in the https://github.com/danports/amber and https://github.com/danports/prism-core repositories. To add other repositories, create or edit the .repositories file in the same directory as the Amber client, or add a new file in the `apis/amber/sources` directory (again, relative to the Amber client's directory). When resolving a package, the first repository to return a valid package wins. The entries in the .repositories file take precedence over the entries in the `apis/amber/sources` files. The format of a repository list file is simple:
+You can configure the repositories where the Amber client will look for available packages. By default, the Amber client will look only in the [amber](https://github.com/danports/amber) and [prism-core](https://github.com/danports/prism-core) repositories. To add other repositories, create or edit the `.repositories` file in the same directory as the Amber client, or add a new file in the `apis/amber/sources` directory (again, relative to the Amber client's directory). When resolving a package, the first repository to return a valid package wins. The entries in the `.repositories` file take precedence over the entries in the `apis/amber/sources` files. The format of a repository list file is simple:
 
 ```
 {
@@ -106,10 +106,10 @@ You can configure the repositories where the Amber client will look for availabl
 }
 ```
 
-where a repository is a simple table with a `type` key and other keys depending on the repository type. Here are the different types of repositories available:
+where each repository is a table with a `type` key and possibly other keys depending on the repository type. Here are the different types of repositories available:
 
 ### GitHub
-This repository type requires the `amber-repo-github` package (which automatically installed with the `amber` package).
+This repository type requires the `amber-repo-github` package (which is automatically installed with the `amber` package).
 
 Configuration:
 ```
@@ -120,7 +120,7 @@ Configuration:
 	[defaultVersion = <branch>,]
 	[auth = {
 		type = "oauth",
-		user = <github-user>,
+		user = <github-username>,
 		token = <github-api-token>
 	}]
 }
@@ -157,7 +157,7 @@ Example:
 ```
 
 ### LocalDirectory
-This repository type fetches packages from a local directory. This is especially useful on an Amber server - it allows you to host packages there and make them available to clients without creating a GitHub repository and importing your code.
+This repository type requires the `amber-repo-local` package. It fetches packages from a local directory, which is especially useful on an Amber server - it allows you to host packages there and make them available to other computers without creating a GitHub repository and importing your code there.
 
 Configuration:
 ```
