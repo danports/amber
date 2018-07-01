@@ -22,6 +22,9 @@ GitHub.getDefaultTree = function(self)
 	else
 		local release = self.repo:latestRelease()
 		version = release.tag
+		if version:sub(1, 1) == "v" then
+			version = version:sub(2)
+		end
 		tree = release:tree()
 	end
 	return version, tree
@@ -31,7 +34,7 @@ GitHub.bindPackageId = function(self, packageId)
 	if version == nil then
 		return self:getDefaultTree()
 	end
-	local release = self.repo:releaseByTag(version)
+	local release = self.repo:releaseByTag("v" .. version)
 	return version, release:tree()
 end
 GitHub.bindPackage = function(self, packageId)
