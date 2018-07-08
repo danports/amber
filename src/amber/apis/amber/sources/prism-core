@@ -2,7 +2,6 @@
 	{
 		type = "GitHub",
 		user = "danports",
-		name = "prism-core",
-		defaultVersion = "master"
+		name = "prism-core"
 	}
 }
