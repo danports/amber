@@ -104,6 +104,15 @@ Runs a nugget with the provided arguments without saving it to a file. Useful fo
 **Examples:**
 - Run the amber-client package without installing it: `> amber nugget run amber-client list name:amber*`
 
+### deploy
+Instructs an Amber server to broadcast the latest available version of a package to the network. Any computers with the [autoupdater](#autoupdater) running with the specified package installed will automatically install the latest version and reboot. The server address, if not specified, will default to `amber://` (i.e. any Amber server the computer can contact).
+
+`> amber deploy <package> [<server>]`
+
+**Examples:**
+- Broadcast an update for the `net` package to the network: `> amber deploy net`
+- Connect to a specific Amber server named "updates" and broadcast an update to the `mypackage` package to that server's network: `> amber deploy mypackage amber://updates`
+
 ## Client configuration
 You can configure the repositories where the Amber client will look for available packages. By default, the Amber client will look only in the [amber](https://github.com/danports/amber) and [prism-core](https://github.com/danports/prism-core) repositories. To add other repositories, create or edit the `.repositories` file in the same directory as the Amber client, or add a new file in the `apis/amber/sources` directory (again, relative to the Amber client's directory). When resolving a package, the first repository in the configuration to return a valid package wins. The entries in the `.repositories` file take precedence over the entries in the `apis/amber/sources` files. The format of a repository list file is simple:
 
@@ -239,7 +248,7 @@ autoupdater.initialize()
 To update all packages installed on a computer, simply walk up to it and press the `u` key. The computer will automatically install the latest version of all installed packages and reboot. This will work provided that a program with the autoupdater API is running and provided that you haven't added your own handler for the `char` event in your program.
 
 ### Deploying package updates remotely
-Broadcasting a package update from your server
+To broadcast a package update to your entire network and automatically update all computers with that package installed, run the [`deploy` command](#deploy).
 
 ## Authoring packages
 An Amber package is simply a directory with an optional manifest file. The name of the directory is the name of the package. When installed with the Amber client, all of the files in that directory (with the exception of the manifest) are copied to the appropriate directory relative to the current directory.

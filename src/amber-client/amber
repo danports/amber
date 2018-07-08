@@ -251,6 +251,18 @@ commands.nugget = {
 		end
 	}
 }
+commands.deploy = {
+	description = "Tells an Amber server to broadcast a package update to the network.",
+	usage = "<package> [<server>]",
+	command = function(packageName, server, more)
+		if not packageName or more then
+			return false
+		end
+		server = server or "amber://"
+		net.sendMessage(server, "deployUpdate", packageName)
+		print(string.format("Sent command to %s to deploy %s.", server, packageName))
+	end
+}
 
 -- TODO: Do we need this? We might be performing a local operation only.
 -- Modify the net library to automatically open a modem when you make a network call.
