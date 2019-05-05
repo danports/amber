@@ -6,6 +6,7 @@
 		{name = "net"},
 		{name = "dns"},
 		{name = "serializer"},
-		{name = "amber-core"}
+		{name = "amber-core"},
+		{name = "amber-autoupdater"}
 	}
 }
