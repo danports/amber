@@ -30,15 +30,14 @@ end
 -- Update broadcasting
 function deployUpdate(toDeploy)
 	log.info(string.format("Deploying package update: %s", toDeploy))
+	local update = {
+		packageUpdated = {name = toDeploy},
+		bundle = client:getBundle({{name = toDeploy}}, nil)
+	}
 	-- TODO: rednet.broadcast - is that the best way to do this?
-	local bundle = client:getBundle({{name = toDeploy}}, nil)
-	rednet.broadcast(net.createMessage("bundleUpdateAvailable", 
-		{
-			packageUpdated = {name = toDeploy},
-			bundle = bundle
-		}))
+	rednet.broadcast(net.createMessage("bundleUpdateAvailable", update))
 	-- Update our local installation, since we won't receive our own broadcast.
-	autoupdater.processUpdateBundle(bundle)
+	autoupdater.processUpdateBundle(update)
 end
 
 -- Startup
