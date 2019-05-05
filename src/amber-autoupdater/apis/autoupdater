@@ -1,8 +1,9 @@
 os.loadAPI("apis/events")
 os.loadAPI("apis/amber/amber")
 
+local config
 local function createInstallation()
-	local client = amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
+	local client = config.client or amber.PackageClient.fromConfigurationPath(nil, {{type = "AmberServer"}})
 	return amber.PackageInstallation.new(client, nil, editHandler, function(progress) print(progress) end)
 end
 local function reboot()
@@ -22,7 +23,7 @@ function updatePackages(interactive)
 	reboot()
 end
 
-local function handleBundleUpdate(update)
+function processUpdateBundle(update)
 	local installation = createInstallation()
 	if installation:getInstalledPackage(update.packageUpdated) then
 		installation:installBundle(update.bundle)
@@ -40,8 +41,9 @@ local function printSystemInfo()
 	print(string.format("Computer ID: %i", id))
 end
 
-function initialize()
-	net.registerMessageHandler("bundleUpdateAvailable", handleBundleUpdate)
+function initialize(configuration)
+	config = configuration or {}
+	net.registerMessageHandler("bundleUpdateAvailable", processUpdateBundle)
 
 	events.registerHandler("char", function(evt, pressed)
 		if pressed == "u" then
