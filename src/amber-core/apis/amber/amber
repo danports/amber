@@ -393,7 +393,7 @@ PackageInstallation.getInstallationMetadata = function(self)
 	end
 	return {version = 1, packages = {}}
 end
-PackageInstallation.writePackageFile = function(self, destination, onWrite)
+PackageInstallation.writePackageFile = function(self, destination, contents, onWrite)
 	local writeTo = destination
 	local editFile = false
 	-- TODO: Write to the template file AND copy it to the destination path if it does not exist.
@@ -432,7 +432,7 @@ PackageInstallation.writePackageFiles = function(self, path, data, onWrite)
 		if type(contents) == "table" then
 			self:writePackageFiles(destination, contents, onWrite)
 		else
-			self:writePackageFile(destination, onWrite)
+			self:writePackageFile(destination, contents, onWrite)
 		end
 	end
 end
