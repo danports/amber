@@ -17,6 +17,9 @@ end
 GitHub.parse = function(url)
 	local user, name, path = url:match("^https?://github%.com/([^/]+)/([^/]+)/?(.*)$")
 	if user and name then
+		if path == "" then
+			path = nil
+		end
 		return {user = user, name = name, path = path}
 	end
 end
