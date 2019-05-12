@@ -355,39 +355,46 @@ PackageInstallation.getInstallationMetadata = function(self)
 	end
 	return {version = 1, packages = {}}
 end
-PackageInstallation.writePackageFiles = function(self, path, data, allFiles)
+PackageInstallation.writePackageFile = function(self, destination, onWrite)
+	local writeTo = destination
+	local editFile = false
+	-- TODO: Write to the template file AND copy it to the destination path if it does not exist.
+	-- That way we can detect changes to the file when a new version is installed.
+	if destination:sub(-2) == ".t" then
+		local baseName = destination:sub(1, #destination - 2)
+		if not fs.exists(baseName) then
+			writeTo = baseName
+			editFile = true
+			self.onProgress(string.format("  %s => %s", destination, writeTo))
+		else
+			self.onProgress(string.format("  %s", writeTo))
+		end
+	else
+		self.onProgress(string.format("  %s", writeTo))
+	end
+	local file = fs.open(writeTo, "w")
+	if not file then
+		self.onProgress(string.format("  ERROR: Unable to open %s for writing; is the file a directory or read-only?", writeTo))
+		return
+	end
+	file.write(contents)
+	file.close()
+	onWrite(writeTo)
+	if editFile and self.onEdit then
+		self.onProgress(string.format("  Editing: %s", writeTo))
+		self.onEdit(writeTo)
+	end
+end
+PackageInstallation.writePackageFiles = function(self, path, data, onWrite)
 	if not fs.isDir(path) then
 		fs.makeDir(path)
 	end
 	for file, contents in pairs(data) do
 		local destination = fs.combine(path, file)
 		if type(contents) == "table" then
-			self:writePackageFiles(destination, contents, allFiles)
+			self:writePackageFiles(destination, contents, onWrite)
 		else
-			local writeTo = destination
-			allFiles[writeTo] = {}
-			local editFile = false
-			-- TODO: Write to the template file AND copy it to the destination path if it does not exist.
-			-- That way we can detect changes to the file when a new version is installed.
-			if destination:sub(-2) == ".t" then
-				local baseName = destination:sub(1, #destination - 2)
-				if not fs.exists(baseName) then
-					writeTo = baseName
-					editFile = true
-					self.onProgress(string.format("  %s => %s", destination, writeTo))
-				else
-					self.onProgress(string.format("  %s", writeTo))
-				end
-			else
-				self.onProgress(string.format("  %s", writeTo))
-			end
-			local file = fs.open(writeTo, "w")
-			file.write(contents)
-			file.close()
-			if editFile and self.onEdit ~= nil then
-				self.onProgress(string.format("  Editing: %s", writeTo))
-				self.onEdit(writeTo)
-			end
+			self:writePackageFile(destination, onWrite)
 		end
 	end
 end
@@ -430,11 +437,21 @@ PackageInstallation.installPackage = function(self, package)
 	local existing = installed.packages[package.id.name] or {}
 	
 	local filesWritten = {}
-	self:writePackageFiles(self.path, package.contents, filesWritten)
-	-- TODO: This check is only needed for legacy package lists.
-	if existing.contents ~= nil then
+	self:writePackageFiles(self.path, package.contents, function(file)
+		filesWritten[file] = {}
+		for _, package in pairs(installed.packages) do
+			if package ~= existing and package.contents then
+				local existingFile = package.contents[file]
+				if existingFile and not existingFile.replaced then
+					existingFile.replaced = true
+					self.onProgress(string.format("  WARN: Replaced %s in package %s", file, formatPackageId(package.id)))
+				end
+			end
+		end
+	end)
+	if existing.contents then
 		for existingFile in pairs(existing.contents) do
-			if filesWritten[existingFile] == nil then
+			if not existingFile.replaced and not filesWritten[existingFile] then
 				self.onProgress(string.format("  Removing obsolete file: %s", existingFile))
 				removeFile(existingFile)
 			end
