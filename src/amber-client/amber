@@ -180,9 +180,9 @@ commands.show = {
 			print(string.format("Installed version: %s", package.installed.id.version))
 			if package.installed.contents and next(package.installed.contents) then
 				print("Installed files:")
-				for file in pairs(package.installed.contents) do
+				for file, fileData in pairs(package.installed.contents) do
 					local flags = ""
-					if file.replaced then
+					if fileData.replaced then
 						flags = " (replaced)"
 					end
 					print(string.format("  %s%s", file, flags))
