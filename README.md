@@ -167,12 +167,13 @@ The `auth` key is optional, but highly recommended, as the GitHub API imposes ra
 ```
 
 ### AmberServer
-This repository type fetches packages from whatever Amber server it can connect to. (See the [Server](#server) section below for more information.) There is no additional configuration required for this repository type.
+This repository type fetches packages from an [Amber server](#server). The optional `server` key specifies a specific server to connect to (defaults to `"amber://"`, i.e. any Amber server the client can connect to).
 
-**Example:**
+**Example:** Fetch packages from the Amber server with computer ID 7:
 ```
 {
-	type = "AmberServer"
+	type = "AmberServer",
+	server = "amber://7"
 }
 ```
 
