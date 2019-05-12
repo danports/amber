@@ -611,8 +611,8 @@ PackageInstallation.removePackage = function(self, package)
 		return false, message
 	end
 
-	for existingFile in pairs(existing.contents) do
-		if not existingFile.replaced then
+	for existingFile, fileData in pairs(existing.contents) do
+		if not fileData.replaced then
 			self.onProgress(string.format("  Removing: %s", existingFile))
 			removeFile(existingFile)
 		end
