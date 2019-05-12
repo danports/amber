@@ -1,11 +1,13 @@
 -- If we're running off a disk, we want to load all of the APIs from the disk, not the computer,
 -- to ensure that they are compatible with this code.
+local restoreLoadAPI = false
 if os.originalLoadAPI == nil then
 	os.originalLoadAPI = os.loadAPI
 	local dir = fs.getDir(shell.getRunningProgram())
 	os.loadAPI = function(api)
 		os.originalLoadAPI(fs.combine(dir, api))
 	end
+	restoreLoadAPI = true
 end
 
 os.loadAPI("apis/events")
@@ -268,3 +270,7 @@ commands.deploy = {
 -- Modify the net library to automatically open a modem when you make a network call.
 net.openModem()
 runCommand(commands, ...)
+if restoreLoadAPI then
+	os.loadAPI = os.originalLoadAPI
+	os.originalLoadAPI = nil
+end
