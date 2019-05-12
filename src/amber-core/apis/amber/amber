@@ -612,8 +612,10 @@ PackageInstallation.removePackage = function(self, package)
 	end
 
 	for existingFile in pairs(existing.contents) do
-		self.onProgress(string.format("  Removing: %s", existingFile))
-		removeFile(existingFile)
+		if not existingFile.replaced then
+			self.onProgress(string.format("  Removing: %s", existingFile))
+			removeFile(existingFile)
+		end
 	end
 	
 	installed.packages[package.name] = nil

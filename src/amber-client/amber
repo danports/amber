@@ -181,7 +181,11 @@ commands.show = {
 			if package.installed.contents and next(package.installed.contents) then
 				print("Installed files:")
 				for file in pairs(package.installed.contents) do
-					print(string.format("  %s", file))
+					local flags = ""
+					if file.replaced then
+						flags = " (replaced)"
+					end
+					print(string.format("  %s%s", file, flags))
 				end
 			end
 		end
