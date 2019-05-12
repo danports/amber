@@ -23,6 +23,9 @@ local function getRepositoryTypes(path)
 				load = function(self)
 					if not self.repoType then
 						self.repoType = dofile(fs.combine(path, name))
+						if not self.repoType then
+							error(string.format("Unable to load repository type %s in %s", name, path))
+						end
 					end
 					return self.repoType
 				end
