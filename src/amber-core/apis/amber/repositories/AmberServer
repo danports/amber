@@ -5,6 +5,12 @@ AmberServer.__index = AmberServer
 AmberServer.new = function(data)
 	return setmetatable({server = data.server or "amber://"}, AmberServer)
 end
+AmberServer.parse = function(url)
+	local match = url:match("^amber://")
+	if match then
+		return {server = url}
+	end
+end
 AmberServer.bindPackage = function(self, packageId)
 	net.sendMessage(self.server, "downloadPackage", packageId)
 	-- This assumes we're running a parallel message loop (or that the caller doesn't mind losing other events).

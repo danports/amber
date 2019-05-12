@@ -14,6 +14,12 @@ GitHub.new = function(data)
 		path = data.path or "src"
 	}, GitHub)
 end
+GitHub.parse = function(url)
+	local user, name, path = url:match("^https?://github%.com/([^/]+)/([^/]+)/?(.*)$")
+	if user and name then
+		return {user = user, name = name, path = path}
+	end
+end
 GitHub.getDefaultTree = function(self)
 	local version, tree
 	if self.defaultVersion then

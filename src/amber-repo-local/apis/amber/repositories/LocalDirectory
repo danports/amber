@@ -6,6 +6,12 @@ LocalDirectory.__index = LocalDirectory
 LocalDirectory.new = function(data)
 	return setmetatable({path = data.path or "/packages"}, LocalDirectory)
 end
+LocalDirectory.parse = function(url)
+	local path = url:match("^file://(.+)$")
+	if path then
+		return {path = path}
+	end
+end
 LocalDirectory.getPackageRootPath = function(self, packageId)
 	return fs.combine(self.path, packageId.name)
 end

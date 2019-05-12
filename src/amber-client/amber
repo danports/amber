@@ -253,6 +253,27 @@ commands.nugget = {
 		end
 	}
 }
+commands.repository = {
+	add = {
+		description = "Add a repository to the client's configuration.",
+		usage = "<url>",
+		command = function(url)
+			if url == nil then
+				return false
+			end
+			local repoConfig, configFile = installation.client:addRepository(url)
+			if repoConfig then
+				if configFile then
+					print(string.format("Added %s repository to %s.", repoConfig.type, configFile))
+				else
+					printError(string.format("Unable to write configuration for new %s repository.", repoConfig.type))
+				end
+			else
+				printError("Unable to identify repository type from URL provided.")
+			end
+		end
+	}
+}
 commands.deploy = {
 	description = "Tells an Amber server to broadcast a package update to the network.",
 	usage = "<package> [<server>]",

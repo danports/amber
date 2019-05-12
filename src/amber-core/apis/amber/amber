@@ -15,6 +15,22 @@ end
 -- Package binding
 PackageClient = {}
 PackageClient.__index = PackageClient
+local function getRepositoryTypes(path)
+	local types = {}
+	if fs.isDir(path) then
+		for _, name in ipairs(fs.list(path)) do
+			types[name] = {
+				load = function(self)
+					if not self.repoType then
+						self.repoType = dofile(fs.combine(path, name))
+					end
+					return self.repoType
+				end
+			}
+		end
+	end
+	return types
+end
 PackageClient.new = function(configFiles, repoTypesPath, defaultConfig)
 	local repoConfigs = {}
 	for _, configFile in ipairs(configFiles) do
@@ -28,20 +44,21 @@ PackageClient.new = function(configFiles, repoTypesPath, defaultConfig)
 	end
 
 	local repositories = {}
-	local repoTypes = {}
+	local repoTypes = getRepositoryTypes(repoTypesPath)
 	for _, repoConfig in pairs(repoConfigs) do
-		local repoType = repoTypes[repoConfig.type]
-		if not repoType then
-			-- TODO: Better error handling.
-			repoType = dofile(fs.combine(repoTypesPath, repoConfig.type))
-			repoTypes[repoConfig.type] = repoType
+		local loader = repoTypes[repoConfig.type]
+		if not loader then
+			error(string.format("Unknown repository type %s", repoConfig.type))
 		end
+		local repoType = loader:load()
 		table.insert(repositories, repoType.new(repoConfig))
 	end
 
 	return setmetatable({
+		configFiles = configFiles,
 		repoConfigs = repoConfigs,
-		repositories = repositories
+		repositories = repositories,
+		repoTypes = repoTypes
 	}, PackageClient)
 end
 PackageClient.fromConfigurationPath = function(path, defaultConfig)
@@ -54,6 +71,27 @@ PackageClient.fromConfigurationPath = function(path, defaultConfig)
 		end
 	end
 	return PackageClient.new(configFiles, fs.combine(path, "apis/amber/repositories"), defaultConfig)
+end
+PackageClient.addRepository = function(self, url, ...)
+	for name, loader in pairs(self.repoTypes) do
+		local repoType = loader:load()
+		if repoType.parse then
+			local repoConfig = repoType.parse(url, ...)
+			if repoConfig then
+				repoConfig.type = name
+				local repository = repoType.new(repoConfig)
+				table.insert(self.repoConfigs, repoConfig)
+				table.insert(self.repositories, repository)
+				local configFile = self.configFiles[1]
+				if configFile then
+					local fileConfigs = serializer.readFromFile(configFile)
+					table.insert(fileConfigs, repoConfig)
+					serializer.writeToFile(configFile, fileConfigs)
+				end
+				return repoConfig, configFile
+			end
+		end
+	end
 end
 local function createPackage(package)
 	if not package.manifest then
