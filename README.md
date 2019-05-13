@@ -87,6 +87,16 @@ Lists packages, optionally filtering by name and state (installed or available).
 - List all available (i.e. not installed) packages whose names start with "amber": `> amber list name:amber* state:available`
 - List all packages, whether installed or not: `> amber list`
 
+### repository add
+Adds a repository to the client's configuration.
+
+`> amber repository add <url>`
+
+**Examples:**
+- Add the [prism-rails](https://github.com/danports/prism-rails) [GitHub repository](#github): `> amber repository add https://github.com/danports/prism-rails`
+- Add a [local repository](#localdirectory) for the mypackages directory: `> amber repository add file://mypackages`
+- Add an [Amber server](#amberserver) as a remote repository: `> amber repository add amber://`
+
 ### nugget save
 Builds a nugget (a self-contained package that contains all of its dependencies) and saves it to a file, optionally with additional packages and files included. File paths are assumed to be relative to the current directory.
 
