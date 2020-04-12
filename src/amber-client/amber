@@ -290,6 +290,12 @@ commands.deploy = {
 		print(string.format("Sent command to %s to deploy %s.", server, packageName))
 	end
 }
+local commandsPath = "apis/amber-client/commands"
+if fs.isDir(commandsPath) then
+	for _, name in ipairs(fs.list(commandsPath)) do
+		commands[name] = dofile(fs.combine(commandsPath, name))
+	end
+end
 
 -- TODO: Do we need this? We might be performing a local operation only.
 -- Modify the net library to automatically open a modem when you make a network call.

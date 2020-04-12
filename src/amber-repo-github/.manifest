@@ -1,4 +1,7 @@
 {
 	description = "Amber support for fetching packages from GitHub repositories",
-	dependencies = {{name = "github"}}
+	dependencies = {
+		{name = "serializer"},
+		{name = "github"}
+	}
 }
