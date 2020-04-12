@@ -38,6 +38,9 @@ Let's say you've installed Amber on a disk using one of the methods above. Now y
 
 `> /disk/amber install <package>`
 
+### After installation
+After installing Amber, it is highly recommended that you run [`> amber github auth`](#github-auth) to configure the GitHub credentials you wish to use to download further packages from GitHub, as you will likely hit GitHub API anonymous user rate limits fairly quickly otherwise.
+
 ## Client commands
 The Amber client supports several commands; run `> amber help <command>` for more details and usage instructions. The client operates on packages based on the current directory, so `cd` to the directory in which you want to install or update packages before running Amber.
 
@@ -96,6 +99,19 @@ Adds a repository to the client's configuration.
 - Add the [prism-rails](https://github.com/danports/prism-rails) [GitHub repository](#github): `> amber repository add https://github.com/danports/prism-rails`
 - Add a [local repository](#localdirectory) for the mypackages directory: `> amber repository add file://mypackages`
 - Add an [Amber server](#amberserver) as a remote repository: `> amber repository add amber://`
+
+### github auth
+Configures default credentials that the Amber client will use to access [GitHub package repositories](#github) that do not have credentials of their own specified. This command requires that the `amber-repo-github` package be installed.
+
+`> amber github auth <username> <access-token> [<type>]`
+
+Where:
+- `<username>` is your GitHub username
+- `<access-token>` is a GitHub [personal access token](https://github.com/settings/tokens)
+- `<type>` is optional and defaults to `oauth`, the only supported authentication type at present
+
+**Examples:**
+- Set default GitHub username and personal access token: `> amber github auth danports 5235f6...`
 
 ### nugget save
 Builds a nugget (a self-contained package that contains all of its dependencies) and saves it to a file, optionally with additional packages and files included. File paths are assumed to be relative to the current directory.
