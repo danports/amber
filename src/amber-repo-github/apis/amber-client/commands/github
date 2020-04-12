@@ -1,0 +1,19 @@
+return {
+    auth = {
+        description = "Configure default GitHub credentials.",
+	    usage = "<username> <access-token> [<type>]",
+        command = function(username, accessToken, authType)
+            if not username or not accessToken then
+                return false
+            end
+            serializer.writeToFile("apis/amber/.github", {
+                defaultAuth = {
+                    type = authType or "oauth",
+                    user = username,
+                    token = accessToken
+                }
+            })
+            print("Saved default GitHub credentials.")
+        end
+    }
+}

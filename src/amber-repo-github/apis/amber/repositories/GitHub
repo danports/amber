@@ -3,9 +3,16 @@ local github = dofile("apis/github")
 local GitHub = {}
 GitHub.__index = GitHub
 GitHub.new = function(data)
+	local authData = data.auth
+	if not authData then
+		local settings = serializer.readFromFile("apis/amber/.github")
+		if settings then
+			authData = settings.defaultAuth
+		end
+	end
 	local auth
-	if data.auth then
-		auth = github.Auth.new(data.auth.type, data.auth.user, data.auth.token)
+	if authData then
+		auth = github.Auth.new(authData.type, authData.user, authData.token)
 	end
 	local repo = github.repo(data.user, data.name, auth)
 	return setmetatable({
