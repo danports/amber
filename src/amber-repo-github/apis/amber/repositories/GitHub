@@ -79,7 +79,7 @@ GitHub.getAvailablePackages = function(self)
 	end
 	
 	local packages = {}
-	for _, file in ipairs(repoRoot.contents) do
+	for _, file in ipairs(repoRoot:getContents()) do
 		if getmetatable(file) == github.Tree then
 			-- TODO: Read the manifest.
 			packages[file.path] = {
