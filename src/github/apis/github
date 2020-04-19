@@ -70,8 +70,8 @@ Blob.__index = Blob
 Blob.new = function(repo, sha, path)
 	return setmetatable({repo=repo, sha=sha, path=path}, Blob)
 end
-Blob.fullPath = function(self, base)
-	if self.parent and self.parent ~= base then
+Blob.fullPath = function(self)
+	if self.parent then
 		return fs.combine(self.parent:fullPath(), self.path)
 	else
 		return self.path
@@ -90,53 +90,50 @@ end
 -- A class for a tree (aka a folder)
 local Tree = {}
 Tree.__index = Tree
-Tree.new = function(repo, sha, path)
+Tree.new = function(repo, sha, path, treeSha)
 	return setmetatable({
 		repo = repo,
 		sha = sha,
-		path = path or ''
+		path = path or '',
+		treeSha = treeSha
 	}, Tree)
 end
 Tree.getContents = function(self)
-	if self.contents then
-		return self.contents
+	if self._contents then
+		return self._contents
 	end
 
-	local url = ('repos/%s/%s/git/trees/%s'):format(self.repo.user, self.repo.name, self.sha)
+	local url = ('repos/%s/%s/git/trees/%s'):format(self.repo.user, self.repo.name, self.treeSha or self.sha)
 	local status, data = getAPI(url, self.repo.auth)
 	if not status then
-		error('Could not get github API from ' ..url)
+		error('Could not get github API from ' .. url)
 	end
 	if data.tree then
+		-- Overwrite pseudo-SHAs like tag or branch names with actual SHAs.
+		if not self.treeSha then
 		self.sha = data.sha
+			self.treeSha = data.sha
+		end
 		self.size = 0
-		self.contents = {}
+		self._contents = {}
 		for _, childdata in ipairs(data.tree) do
 			childdata.fullPath = fs.combine(self:fullPath(), childdata.path)
 			local child
 			if childdata.type == 'blob' then
-				child = Blob.new(self.repo, childdata.sha, childdata.path)
+				child = Blob.new(self.repo, self.sha, childdata.path)
 				child.size = childdata.size
 			elseif childdata.type == 'tree' then
-				child = Tree.new(self.repo, childdata.sha, childdata.path)
+				child = Tree.new(self.repo, self.sha, childdata.path, childdata.sha)
 			else
 				error("Unknown tree node type", JSON.encode(childdata))
 			end
 			self.size = self.size + (child.size or 0)
 			child.parent = self
-			table.insert(self.contents, child)
+			table.insert(self._contents, child)
 		end
-		return self.contents
+		return self._contents
 	else
 		error("No tree data returned", JSON.encode(data))
-	end
-end
-local function walkTree(t, level)
-	for _, item in ipairs(t:getContents()) do
-		coroutine.yield(item, level)
-		if getmetatable(item) == Tree then
-			walkTree(item, level + 1)
-		end
 	end
 end
 Tree.getFullSize = function(self)
@@ -156,9 +153,18 @@ Tree.getChild = function(self, path)
 	end
 end
 Tree.iter = function(self)
-	return coroutine.wrap(function()
-		walkTree(self, 0)
-	end)
+	local stack = {{self, 0}}
+	return function()
+		local entry = table.remove(stack)
+		if entry then
+			if getmetatable(entry[1]) == Tree then
+				for _, child in ipairs(entry[1]:getContents()) do
+					table.insert(stack, {child, entry[2] + 1})
+				end
+			end
+			return unpack(entry)
+		end
+	end
 end
 Tree.cloneTo = function(self, dest, onProgress)
 	if not fs.exists(dest) then
@@ -180,29 +186,13 @@ Tree.cloneTo = function(self, dest, onProgress)
 		if onProgress then onProgress(item) end
 	end
 end
-Tree.copyTo = function(self, dest, onProgress, encode)
-	local root = self.parent
-	while root.parent do
-		root = root.parent
-	end
-	if encode == nil then
-		encode = function(s) return s end
-	end
-	for item in self:iter() do
-		if getmetatable(item) == Blob then
-			dest[item:fullPath()] = encode(item:getContents())
-		end
-		if onProgress then onProgress(item) end
-	end
-end
 Tree.fullPath = Blob.fullPath
 
 -- A class for a release
 local Release = {}
 Release.__index = Release
 Release.new = function(repo, tag)
-	local r = setmetatable({repo=repo, tag=tag}, Release)
-	return r
+	return setmetatable({repo=repo, tag=tag}, Release)
 end
 Release.tree = function(self)
 	return self.repo:tree(self.tag)
@@ -224,21 +214,18 @@ Repository.tree = function(self, sha)
 	end
 	return __repoPriv[self].trees[sha]
 end
-Repository.latestRelease = function(self)
-	local url = ('repos/%s/%s/releases/latest'):format(self.user, self.name)
-	local status, data = getAPI(url, self.auth)
+local function releaseFromURL(url, repo)
+	local status, data = getAPI(url, repo.auth)
 	if not status then
-		error('Could not get github API from ' ..url)
+		error('Could not get release github API from ' .. url)
 	end
-	return Release.new(self, data["tag_name"])
+	return Release.new(repo, data["tag_name"])
+	end
+Repository.latestRelease = function(self)
+	return releaseFromURL(('repos/%s/%s/releases/latest'):format(self.user, self.name), self)
 end
 Repository.releaseForTag = function(self, tag)
-	local url = ('repos/%s/%s/releases/tags/%s'):format(self.user, self.name, tag)
-	local status, data = getAPI(url, self.auth)
-	if not status then
-		error('Could not get github API from ' ..url)
-	end
-	return Release.new(self, data["tag_name"])
+	return releaseFromURL(('repos/%s/%s/releases/tags/%s'):format(self.user, self.name, tag), self)
 end
 Repository.__tostring = function(self) return ("Repo@%s/%s"):format(self.user, self.name) end
 
