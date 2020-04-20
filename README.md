@@ -4,42 +4,38 @@ A ComputerCraft package manager
 A package manager is a software system that allows you to break complex programs down into reusable bits of code called packages. With Amber, you can build your own packages, use packages that others have written, and host repositories of packages on in-game computers or GitHub. You can also build a self-contained program called a _nugget_: a single file that contains a program and all of the dependencies (APIs, etc.) it needs to run.
 
 ## Getting started
-There are several ways you can get started with Amber.
 
-### Install an Amber package (without installing Amber)
-Let's say you want to install an Amber package withot installing Amber itself. Just run this command:
+### Installing Amber
+If you have a working `pastebin` on your computer or turtle, simply run:
+
+`> pastebin run ACtzcSMD install amber`
+
+If you do not have a working `pastebin` on your computer or turtle (`pastebin` on older versions of ComputerCraft like 1.74 is [broken](https://github.com/dan200/ComputerCraft/issues/64)):
+1. `> edit amber`
+2. Type this, save the file, and exit: `load(http.get("http://ambernuggets.cc/get/latest").readAll(), "amber", "t", _ENV)(...)`
+3. `> amber install amber`
+
+### After installation
+After installing Amber, it is highly recommended that you run [`> amber github auth`](#github-auth) to configure the GitHub credentials you wish to use to download further packages from GitHub, as you will likely hit GitHub API anonymous user rate limits fairly quickly otherwise.
+
+### Advanced installation options
+
+#### Install an Amber package without installing Amber
+If you'd like to install an Amber package withot installing Amber itself, run this command:
 
 `> pastebin run ACtzcSMD install <package>`
 
-To fully install Amber with all of its libraries, run: `> pastebin run ACtzcSMD install amber`
-
-### Install an Amber package (with a basic Amber installation)
-Let's say you want to save Amber to your computer for later use. Run these commands:
+#### Install Amber as a single file
+If you want to install Amber as a single file (without all of the various directories created for a full installation), just run:
 
 `> pastebin get ACtzcSMD amber`
 
-`> amber install <package>`
-
-To fully install Amber with all of its libraries, run: `> amber install amber`
-
-### Install an Amber package (without Pastebin)
-This method is especially useful when running Amber on older versions of ComputerCraft (`pastebin` on old versions like 1.74 is broken; see [ComputerCraft#64](https://github.com/dan200/ComputerCraft/issues/64)).
-
-1. `> edit amber`
-2. Type this, save the file, and exit: `load(http.get("http://ambernuggets.cc/get/latest").readAll(), "amber", "t", _ENV)(...)`
-3. `> amber install <package>`
-
-To fully install Amber with all of its libraries, run: `> amber install amber`
-
-### Run Amber from a disk and install a package onto the computer
+#### Run Amber from a disk and install a package onto the computer
 Let's say you've installed Amber on a disk using one of the methods above. Now you can insert that disk into a disk drive attached to another computer and run the following commands to install a package on that computer:
 
 `> cd /`
 
 `> /disk/amber install <package>`
-
-### After installation
-After installing Amber, it is highly recommended that you run [`> amber github auth`](#github-auth) to configure the GitHub credentials you wish to use to download further packages from GitHub, as you will likely hit GitHub API anonymous user rate limits fairly quickly otherwise.
 
 ## Client commands
 The Amber client supports several commands; run `> amber help <command>` for more details and usage instructions. The client operates on packages based on the current directory, so `cd` to the directory in which you want to install or update packages before running Amber.
