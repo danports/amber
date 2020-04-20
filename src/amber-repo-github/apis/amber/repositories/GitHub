@@ -34,7 +34,7 @@ GitHub.getDefaultTree = function(self)
 	local version, tree
 	if self.defaultVersion then
 		tree = self.repo:tree(self.defaultVersion)
-		version = string.format("%s-%s-%s", tree:getCommit().data.committer.date:gsub("%D", ""), self.defaultVersion, tree.sha:sub(1, 8))
+		version = string.format("%s-%s-%s", tree:getCommit().committer.date:gsub("%D", ""), self.defaultVersion, tree.sha:sub(1, 8))
 	else
 		local release = self.repo:latestRelease()
 		version = release.tag
