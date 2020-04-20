@@ -67,8 +67,14 @@ local function getCommand(commands, path, op, ...)
 	end
 end
 local function listCommands(commands, path)
-	for name, command in pairs(commands) do
+	local sortedNames = {}
+	for name in pairs(commands) do
+		table.insert(sortedNames, name)
+	end
+	table.sort(sortedNames)
+	for _, name in pairs(sortedNames) do
 		local fullPath = path .. name
+		local command = commands[name]
 		if command.command then
 			print(fullPath)
 		else
