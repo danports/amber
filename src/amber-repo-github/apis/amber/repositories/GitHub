@@ -53,6 +53,22 @@ GitHub.bindPackageId = function(self, packageId)
 	local release = self.repo:releaseByTag("v" .. version)
 	return version, release:tree()
 end
+local function fullPathFrom(node, base)
+	if node.parent and node.parent ~= base then
+		return fs.combine(fullPathFrom(node.parent, base), node.path)
+	else
+		return node.path
+	end
+end
+local function treeContents(tree)
+	local dest = {}
+	for item in tree:iter() do
+		if getmetatable(item) == github.Blob then
+			dest[fullPathFrom(item, tree)] = item:getContents()
+		end
+	end
+	return dest
+end
 GitHub.bindPackage = function(self, packageId)
 	local version, tree = self:bindPackageId(packageId)
 	local repoRoot = tree:getChild(self.path)
@@ -64,11 +80,9 @@ GitHub.bindPackage = function(self, packageId)
 		return nil, string.format("Unable to find package %s in repository root %s", packageId.name, self.path)
 	end
 	
-	local contents = {}
-	packageTree:copyTo(contents, nil)
 	return {
 		id = {name = packageId.name, version = version},
-		contents = contents
+		contents = treeContents(packageTree)
 	}
 end
 GitHub.getAvailablePackages = function(self)
@@ -79,7 +93,7 @@ GitHub.getAvailablePackages = function(self)
 	end
 	
 	local packages = {}
-	for _, file in ipairs(repoRoot.contents) do
+	for _, file in ipairs(repoRoot:getContents()) do
 		if getmetatable(file) == github.Tree then
 			-- TODO: Read the manifest.
 			packages[file.path] = {
