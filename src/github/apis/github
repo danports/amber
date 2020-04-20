@@ -64,6 +64,25 @@ Auth.delete = function(user)
 	writeAuth(authTable)
 end
 
+-- A class for a commit
+local Commit = {}
+Commit.__index = Commit
+Commit.new = function(repo, sha)
+	-- Documented here: https://developer.github.com/v3/git/trees/
+	local url = ('repos/%s/%s/git/commits/%s'):format(repo.user, repo.name, sha)
+	local status, data = getAPI(url, repo.auth)
+	if not status then
+		error('Could not get commit github API from ' ..url)
+	end
+	return setmetatable({
+		repo = repo,
+		sha = sha,
+		author = data.author,
+		committer = data.committer,
+		message = data.message
+	}, Commit)
+end
+
 -- A class for a blob (aka a file)
 local Blob = {}
 Blob.__index = Blob
@@ -111,7 +130,7 @@ Tree.getContents = function(self)
 	if data.tree then
 		-- Overwrite pseudo-SHAs like tag or branch names with actual SHAs.
 		if not self.treeSha then
-		self.sha = data.sha
+			self.sha = data.sha
 			self.treeSha = data.sha
 		end
 		self.size = 0
@@ -151,6 +170,9 @@ Tree.getChild = function(self, path)
 			return item
 		end
 	end
+end
+Tree.getCommit = function(self)
+	return Commit.new(self.repo, self.sha)
 end
 Tree.iter = function(self)
 	local stack = {{self, 0}}
@@ -199,28 +221,35 @@ Release.tree = function(self)
 end
 
 -- A class for a repository
-local __repoPriv = setmetatable({}, {mode='k'})
 local Repository = {}
 Repository.__index = Repository
 Repository.new = function(user, name, auth)
-	local r = setmetatable({user=user, name=name, auth=auth}, Repository)
-	__repoPriv[r] = {trees={}}
-	return r
+	return setmetatable({
+		user = user,
+		name = name,
+		auth = auth,
+		_treeCache = {}
+	}, Repository)
 end
 Repository.tree = function(self, sha)
 	sha = sha or "master"
-	if not __repoPriv[self].trees[sha] then
-		__repoPriv[self].trees[sha] = Tree.new(self, sha)
+	local cachedTree = self._treeCache[sha]
+	local newTree = Tree.new(self, sha)
+	newTree:getContents() -- Force resolution of commit-ish
+	if cachedTree and newTree.sha == cachedTree.sha then
+		return cachedTree
 	end
-	return __repoPriv[self].trees[sha]
+	self._treeCache[sha] = newTree
+	return newTree
 end
 local function releaseFromURL(url, repo)
 	local status, data = getAPI(url, repo.auth)
 	if not status then
 		error('Could not get release github API from ' .. url)
 	end
+	-- format is described at https://developer.github.com/v3/repos/releases/
 	return Release.new(repo, data["tag_name"])
-	end
+end
 Repository.latestRelease = function(self)
 	return releaseFromURL(('repos/%s/%s/releases/latest'):format(self.user, self.name), self)
 end
@@ -232,6 +261,7 @@ Repository.__tostring = function(self) return ("Repo@%s/%s"):format(self.user, s
 -- Export members
 local github = {}
 github.Repository = Repository
+github.Commit = Commit
 github.Blob = Blob
 github.Tree = Tree
 github.Auth = Auth
